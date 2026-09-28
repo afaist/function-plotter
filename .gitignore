@@ -1,1 +1,10 @@
 /target
+/log
+*.db
+*.log
+Cargo.lock
+*.csv
+*.bak
+*.db*
+*.zip
+/.gigacode_vsc

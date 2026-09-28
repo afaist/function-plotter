@@ -4,6 +4,10 @@ mod evaluator;
 mod renderer;
 mod export;
 mod session;
+mod ui;
+
+pub use export::save_dialog;
+pub use export::save_png;
 
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {

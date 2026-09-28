@@ -184,29 +184,12 @@ pub fn draw_axes(painter: &Painter, rect: Rect, viewport: &Viewport) {
     // Подписи делений: адаптивная точность
     let font = egui::FontId::proportional(11.0);
 
-    fn format_value(val: f64, step: f64) -> String {
-        // Определяем, сколько знаков после запятой нужно, чтобы различать соседние метки
-        if step <= 0.0001 {
-            format!("{val:.6}")
-        } else if step <= 0.001 {
-            format!("{val:.5}")
-        } else if step <= 0.01 {
-            format!("{val:.4}")
-        } else if step <= 0.1 {
-            format!("{val:.3}")
-        } else if step <= 1.0 {
-            format!("{val:.2}")
-        } else {
-            format!("{val:.1}")
-        }
-    }
-
     // Метки по X
     for i in 0..=n_grid_x {
         let x = viewport.x_min + nice_step_x * i as f64;
         if x >= viewport.x_min && x <= viewport.x_max {
             let p = viewport.math_to_screen(x, 0.0, rect);
-            let label = format_value(x, nice_step_x);
+            let label = format_coord(x, nice_step_x);
             painter.text(
                 p + Vec2::new(2.0, 2.0),
                 egui::Align2::LEFT_TOP,
@@ -222,7 +205,7 @@ pub fn draw_axes(painter: &Painter, rect: Rect, viewport: &Viewport) {
         let y = viewport.y_min + nice_step_y * i as f64;
         if y >= viewport.y_min && y <= viewport.y_max {
             let p = viewport.math_to_screen(0.0, y, rect);
-            let label = format_value(y, nice_step_y);
+            let label = format_coord(y, nice_step_y);
             // Смещение влево, выравнивание по правому краю, чтобы не наезжало на ось
             painter.text(
                 p + Vec2::new(-4.0, -10.0),
@@ -234,6 +217,7 @@ pub fn draw_axes(painter: &Painter, rect: Rect, viewport: &Viewport) {
         }
     }
 }
+
 /// Выбрать количество знаков после запятой в зависимости от масштаба (шага сетки).
 pub fn format_coord(val: f64, step: f64) -> String {
     if step <= 0.0001 {
