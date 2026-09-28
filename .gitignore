@@ -8,3 +8,4 @@ Cargo.lock
 *.db*
 *.zip
 /.gigacode_vsc
+*.json
