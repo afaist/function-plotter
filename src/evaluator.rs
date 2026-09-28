@@ -44,7 +44,6 @@ impl PlotData {
                         if y.is_finite() {
                             y_min = y_min.min(y);
                             y_max = y_max.max(y);
-                            fill_points.push((x, y));
                         }
                         points.push((x, y));
                     }
@@ -149,13 +148,17 @@ impl PlotData {
         let mut result_points = Vec::with_capacity(n);
         let mut y_min = f64::INFINITY;
         let mut y_max = f64::NEG_INFINITY;
+        // Заполняем fill_points только для интегралов
         let mut fill_points = Vec::new();
+        let is_integral = matches!(formula.formula_type(), FormulaType::Integral);
 
         for p in points {
             if p.y.is_finite() {
                 y_min = y_min.min(p.y);
                 y_max = y_max.max(p.y);
-                fill_points.push((p.x, p.y));
+                if is_integral {
+                    fill_points.push((p.x, p.y));
+                }
             }
             result_points.push((p.x, p.y));
         }

@@ -6,8 +6,25 @@ use crate::app::PlotApp;
 use crate::renderer;
 
 /// Отрисовка центральной панели (canvas).
-pub fn show_canvas_panel(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui) {
-    let (rect, response) = ui.allocate_exact_size(ui.available_size(), Sense::click_and_drag());
+pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
+    // Получаем реальный размер экрана и вычитаем левую панель
+    let screen_rect = ctx.input(|i| i.screen_rect);
+    let left = ui.max_rect().left();
+    let rect = Rect::from_x_y_ranges(
+        left..=screen_rect.right(),
+        screen_rect.y_range(),
+    );
+    let response = ui.allocate_rect(rect, Sense::click_and_drag());
+    ui.advance_cursor_after_rect(rect);
+
+    // Отслеживаем изменение размера и пересчитываем графики
+    if let Some(prev) = app._last_canvas_rect {
+        if prev.size() != rect.size() {
+            app.mark_all_dirty();
+            ctx.request_repaint();
+        }
+    }
+    app._last_canvas_rect = Some(rect);
 
     // Масштабирование (колесо мыши)
     if let Some(pos) = response.hover_pos() {
@@ -147,6 +164,8 @@ fn draw_intersections(
         return;
     }
 
+    let mut found: Vec<(f64, f64)> = Vec::new();
+
     for i in 0..visible.len() {
         for j in (i + 1)..visible.len() {
             let data_a = visible[i].data.as_ref().unwrap();
@@ -177,19 +196,41 @@ fn draw_intersections(
                             && ix >= viewport.x_min && ix <= viewport.x_max
                             && iy >= viewport.y_min && iy <= viewport.y_max
                         {
-                            let screen_pos = viewport.math_to_screen(ix, iy, rect);
-                            // Рисуем белую точку с обводкой
-                            painter.circle_filled(screen_pos, 5.0, egui::Color32::WHITE);
-                            painter.circle_stroke(
-                                screen_pos,
-                                5.0,
-                                egui::Stroke::new(1.5_f32, egui::Color32::BLACK),
-                            );
-                            return; // Показываем только первое пересечение
+                            // Проверяем дубликаты
+                            let is_dup = found
+                                .iter()
+                                .any(|(fx, fy)| {
+                                    (fx - ix).abs() < 0.01 * (viewport.x_max - viewport.x_min)
+                                        && (fy - iy).abs() < 0.01 * (viewport.y_max - viewport.y_min)
+                                });
+                            if !is_dup {
+                                found.push((ix, iy));
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    // Отрисовка всех найденных точек
+    for (ix, iy) in &found {
+        let screen_pos = viewport.math_to_screen(*ix, *iy, rect);
+        // Маленькая белая точка с обводкой (радиус 2.5)
+        painter.circle_filled(screen_pos, 2.5, egui::Color32::WHITE);
+        painter.circle_stroke(
+            screen_pos,
+            2.5,
+            egui::Stroke::new(1.0_f32, egui::Color32::BLACK),
+        );
+        // Подпись с координатами
+        let label = format!("({:.3}, {:.3})", ix, iy);
+        painter.text(
+            screen_pos + egui::vec2(10.0, -8.0),
+            egui::Align2::LEFT_TOP,
+            label,
+            egui::FontId::monospace(10.0),
+            Color32::from_rgb(255, 255, 100),
+        );
     }
 }

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::time::Instant;
 
-use egui::{Color32, Context, Pos2, Ui};
+use egui::{Color32, Context, Pos2, Rect, Ui};
 
 use crate::evaluator::PlotData;
 use crate::parser::{self, ParsedFormula};
@@ -104,6 +104,9 @@ pub struct PlotApp {
     pub status_time: Option<Instant>,
     pub status_duration: std::time::Duration,
     pub selected_graph: Option<usize>,
+    /// Последний размер canvas для отслеживания ресайза
+    #[allow(dead_code)]
+    pub _last_canvas_rect: Option<Rect>,
 }
 
 impl Default for PlotApp {
@@ -123,6 +126,7 @@ impl Default for PlotApp {
             status_time: None,
             status_duration: std::time::Duration::from_secs(3),
             selected_graph: Some(0),
+            _last_canvas_rect: None,
         };
         app.graphs.push(GraphEntry::new(
             "f1",
@@ -339,6 +343,9 @@ impl eframe::App for PlotApp {
         {
             self.recompute_all();
         }
+
+        // Автоматический пересчёт dirty графиков
+        self.recompute_all();
 
         // --- Левая панель управления ---
         egui::SidePanel::left("controls").show(ctx, |ui| {
