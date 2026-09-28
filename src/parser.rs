@@ -1,4 +1,4 @@
-use meval::{Expr, Error as MevalError};
+use mathexpr::builder::{Executable, Expression};
 
 /// Тип формулы: обычная, производная или интеграл.
 #[derive(Clone, Debug, PartialEq)]
@@ -11,7 +11,7 @@ pub enum FormulaType {
 /// Разобранная формула, готовая к вычислению.
 #[derive(Clone, Debug)]
 pub enum ParsedFormula {
-    Regular { expr: Expr },
+    Regular { compiled: Executable },
     Derivative { inner: Box<ParsedFormula> },
     Integral {
         inner: Box<ParsedFormula>,
@@ -24,12 +24,8 @@ impl ParsedFormula {
     /// Вычислить f(x). Возвращает NaN при ошибке.
     pub fn eval(&self, x: f64) -> f64 {
         match self {
-            Self::Regular { expr } => {
-                expr.clone()
-                    .bind("x")
-                    .ok()
-                    .map(|f| f(x))
-                    .unwrap_or(f64::NAN)
+            Self::Regular { compiled } => {
+                compiled.clone().eval(&[x]).unwrap_or(f64::NAN)
             }
             Self::Derivative { inner } => inner.eval(x),
             Self::Integral { inner: _, lower: _, upper: _ } => f64::NAN,
@@ -150,22 +146,20 @@ pub fn parse(input: &str) -> Result<ParsedFormula, String> {
             let inner = parse(inner_expr).map_err(|e| format!("integral: {e}"))?;
 
             // Парсим границы как выражения (должны быть константами)
-            let lower_expr: Expr = lower_str
-                .parse()
-                .map_err(|e: MevalError| format!("Граница lower: {e}"))?;
+            let lower_expr = Expression::parse(lower_str)
+                .map_err(|e| format!("Граница lower: {e}"))?;
             let lower = lower_expr
-                .bind("x")
+                .compile_no_vars()
                 .ok()
-                .map(|f| f(0.0))
+                .and_then(|e| e.eval(&[]).ok())
                 .unwrap_or(f64::NAN);
 
-            let upper_expr: Expr = upper_str
-                .parse()
-                .map_err(|e: MevalError| format!("Граница upper: {e}"))?;
+            let upper_expr = Expression::parse(upper_str)
+                .map_err(|e| format!("Граница upper: {e}"))?;
             let upper = upper_expr
-                .bind("x")
+                .compile_no_vars()
                 .ok()
-                .map(|f| f(0.0))
+                .and_then(|e| e.eval(&[]).ok())
                 .unwrap_or(f64::NAN);
 
             if !lower.is_finite() || !upper.is_finite() {
@@ -187,16 +181,14 @@ pub fn parse(input: &str) -> Result<ParsedFormula, String> {
     }
 
     // Обычная формула
-    let expr: Expr = trimmed
-        .parse::<Expr>()
-        .map_err(|e: MevalError| format!("{e}"))?;
+    let expr = Expression::parse(trimmed)
+        .map_err(|e| format!("{e}"))?;
 
-    let test = expr.clone().bind("x");
-    if test.is_err() {
-        return Err("Формула должна использовать переменную x".into());
-    }
+    let compiled = expr
+        .compile(&["x"])
+        .map_err(|e| format!("{e}"))?;
 
-    Ok(ParsedFormula::Regular { expr })
+    Ok(ParsedFormula::Regular { compiled })
 }
 
 #[cfg(test)]
