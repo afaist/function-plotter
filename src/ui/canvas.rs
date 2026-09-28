@@ -8,7 +8,7 @@ use crate::renderer;
 /// Отрисовка центральной панели (canvas).
 pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     // Получаем реальный размер экрана и вычитаем левую панель
-    let screen_rect = ctx.input(|i| i.screen_rect);
+    let screen_rect = ctx.input(|i| i.raw.screen_rect).unwrap_or_else(|| egui::Rect::NOTHING);
     let left = ui.max_rect().left();
     let rect = Rect::from_x_y_ranges(
         left..=screen_rect.right(),

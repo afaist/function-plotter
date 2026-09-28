@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::time::Instant;
 
-use egui::{Color32, Context, Pos2, Rect, Ui};
+use egui::{Color32, Pos2, Rect};
 
 use crate::evaluator::PlotData;
 use crate::parser::{self, ParsedFormula};
@@ -265,9 +265,9 @@ impl PlotApp {
 }
 
 impl eframe::App for PlotApp {
-    fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         // --- Горячие клавиши ---
-        let input = ctx.input(|i| i.clone());
+        let input = ui.input(|i| i.clone());
         let ctrl = input.modifiers.ctrl || input.modifiers.command;
 
         // Ctrl+N — новый график
@@ -323,10 +323,10 @@ impl eframe::App for PlotApp {
                     } else {
                         self.selected_graph = Some(idx);
                     }
-            self.recompute_all();
+                    self.recompute_all();
+                }
+            }
         }
-    }
-}
 
         // R — сбросить масштаб
         if input.key_pressed(egui::Key::R) && !ctrl {
@@ -348,13 +348,15 @@ impl eframe::App for PlotApp {
         self.recompute_all();
 
         // --- Левая панель управления ---
-        egui::SidePanel::left("controls").show(ctx, |ui| {
-            crate::ui::controls::show_controls_panel(self, ctx, ui);
-        });
-
-        // --- Центральная область: холст для графиков ---
-        egui::CentralPanel::default().show(ctx, |ui: &mut Ui| {
-            crate::ui::canvas::show_canvas_panel(self, ctx, ui);
+        let ctx = ui.ctx().clone();
+        egui::CentralPanel::default().show(ui, |ui| {
+            // --- Левая панель управления ---
+            egui::Panel::left("controls").show(ui, |ui| {
+                crate::ui::controls::show_controls_panel(self, &ctx, ui);
+            });
+            
+            // --- Центральная область: холст для графиков ---
+            crate::ui::canvas::show_canvas_panel(self, &ctx, ui);
         });
     }
 }

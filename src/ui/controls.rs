@@ -44,8 +44,8 @@ fn render_graph_entry(
             resp.rect,
             4.0,
             egui::Stroke::new(1.5_f32, Color32::from_rgb(255, 80, 80)),
+            egui::StrokeKind::Inside,
         );
-        resp.clone().on_hover_text_at_pointer(err);
         ui.colored_label(Color32::from_rgb(255, 100, 100), err);
     }
 
