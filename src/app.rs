@@ -31,6 +31,13 @@ impl StatusMessage {
     }
 }
 
+/// Точка пересечения двух графиков.
+#[derive(Clone, Debug)]
+pub struct IntersectionPoint {
+    pub x: f64,
+    pub y: f64,
+}
+
 /// Один график: формула, стиль, вычисленные точки.
 pub struct GraphEntry {
     pub formula_text: String,
@@ -89,6 +96,8 @@ pub struct PlotApp {
     pub n_points: usize,
     pub viewport: Viewport,
     pub auto_y: bool,
+    pub adaptive: bool, // Использовать адаптивный алгоритм
+    pub adaptive_tolerance: f64, // Порог для адаптивного алгоритма
     pub drag_start: Option<Pos2>,
     pub session_path: Option<PathBuf>,
     pub status_msg: Option<StatusMessage>,
@@ -106,6 +115,8 @@ impl Default for PlotApp {
             n_points: 500,
             viewport: Viewport::new(),
             auto_y: true,
+            adaptive: false,
+            adaptive_tolerance: 0.01,
             drag_start: None,
             session_path: None,
             status_msg: None,
@@ -135,7 +146,17 @@ impl PlotApp {
         for g in &mut self.graphs {
             if g.dirty {
                 if let Some(ref f) = g.parsed {
-                    g.data = Some(PlotData::compute(f, self.x_min, self.x_max, self.n_points));
+                    g.data = if self.adaptive {
+                        Some(PlotData::compute_adaptive(
+                            f,
+                            self.x_min,
+                            self.x_max,
+                            10, // max refinements
+                            self.adaptive_tolerance,
+                        ))
+                    } else {
+                        Some(PlotData::compute(f, self.x_min, self.x_max, self.n_points))
+                    };
                 } else {
                     g.data = None;
                 }
@@ -172,6 +193,70 @@ impl PlotApp {
             self.viewport.y_min = y_min - pad;
             self.viewport.y_max = y_max + pad;
         }
+    }
+
+    /// Найти точки пересечения видимых графиков.
+    pub fn find_intersections(&self) -> Vec<IntersectionPoint> {
+        let mut intersections = Vec::new();
+        let visible: Vec<&GraphEntry> = self
+            .graphs
+            .iter()
+            .filter(|g| g.style.visible && g.data.is_some())
+            .collect();
+
+        for i in 0..visible.len() {
+            for j in (i + 1)..visible.len() {
+                let data_a = visible[i].data.as_ref().unwrap();
+                let data_b = visible[j].data.as_ref().unwrap();
+
+                // Ищем пересечения по общей сетке X
+                let min_len = data_a.points.len().min(data_b.points.len());
+                for k in 1..min_len {
+                    let (xa_a, ya_a) = data_a.points[k - 1];
+                    let (_xa_b, yb_a) = data_b.points[k - 1];
+                    let (xa_c, ya_c) = data_a.points[k];
+                    let (_xa_d, yb_c) = data_b.points[k];
+
+                    // Проверяем sign change: (ya - yb) меняет знак
+                    let diff_prev = ya_a - yb_a;
+                    let diff_curr = ya_c - yb_c;
+
+                    if diff_prev * diff_curr < 0.0 {
+                        // Линейная интерполяция для точности
+                        let dx = xa_c - xa_a;
+                        if dx.abs() > 1e-15 {
+                            let t = diff_prev / (diff_prev - diff_curr);
+                            let ix = xa_a + t * dx;
+                            // Интерполируем Y для обоих графиков
+                            let slope_a = (ya_c - ya_a) / dx;
+                            let slope_b = (yb_c - yb_a) / dx;
+                            let iy_a = ya_a + slope_a * (ix - xa_a);
+                            let iy_b = yb_a + slope_b * (ix - xa_a);
+                            let iy = (iy_a + iy_b) / 2.0;
+
+                            if ix.is_finite() && iy.is_finite() {
+                                // Проверяем что точка в viewport
+                                if ix >= self.viewport.x_min
+                                    && ix <= self.viewport.x_max
+                                    && iy >= self.viewport.y_min
+                                    && iy <= self.viewport.y_max
+                                {
+                                    // Проверяем дубликаты
+                                    let is_dup = intersections
+                                        .iter()
+                                        .any(|p: &IntersectionPoint| (p.x - ix).abs() < 0.01 * (self.viewport.x_max - self.viewport.x_min));
+                                    if !is_dup {
+                                        intersections.push(IntersectionPoint { x: ix, y: iy });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        intersections
     }
 }
 
@@ -234,10 +319,10 @@ impl eframe::App for PlotApp {
                     } else {
                         self.selected_graph = Some(idx);
                     }
-                    self.recompute_all();
-                }
-            }
+            self.recompute_all();
         }
+    }
+}
 
         // R — сбросить масштаб
         if input.key_pressed(egui::Key::R) && !ctrl {

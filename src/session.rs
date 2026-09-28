@@ -23,6 +23,8 @@ pub struct SessionData {
     pub x_max: f64,
     pub n_points: usize,
     pub auto_y: bool,
+    pub adaptive: bool,
+    pub adaptive_tolerance: f64,
     pub viewport_x_min: f64,
     pub viewport_x_max: f64,
     pub viewport_y_min: f64,
@@ -30,7 +32,7 @@ pub struct SessionData {
 }
 
 impl SessionData {
-    pub const VERSION: u32 = 1;
+    pub const VERSION: u32 = 2;
 
     /// Собрать DTO из состояния приложения.
     pub fn from_app(app: &PlotApp) -> Self {
@@ -56,6 +58,8 @@ impl SessionData {
             x_max: app.x_max,
             n_points: app.n_points,
             auto_y: app.auto_y,
+            adaptive: app.adaptive,
+            adaptive_tolerance: app.adaptive_tolerance,
             viewport_x_min: app.viewport.x_min,
             viewport_x_max: app.viewport.x_max,
             viewport_y_min: app.viewport.y_min,
@@ -90,6 +94,8 @@ impl SessionData {
         app.x_max = self.x_max;
         app.n_points = self.n_points.max(10);
         app.auto_y = self.auto_y;
+        app.adaptive = self.adaptive;
+        app.adaptive_tolerance = self.adaptive_tolerance;
         app.viewport.x_min = self.viewport_x_min;
         app.viewport.x_max = self.viewport_x_max;
         if !self.auto_y {

@@ -156,7 +156,21 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     });
 
     // Диапазон Y
+    ui.add_space(8.0);
+    ui.separator();
+    ui.heading("Диапазон Y");
     ui.checkbox(&mut app.auto_y, "Авто-масштаб Y");
+    
+    // Адаптивный алгоритм
+    ui.add_space(4.0);
+    ui.checkbox(&mut app.adaptive, "Адаптивная плотность");
+    if app.adaptive {
+        ui.horizontal(|ui| {
+            ui.add(egui::Slider::new(&mut app.adaptive_tolerance, 0.0001..=1.0)
+                .text("точность"));
+        });
+    }
+    
     if !app.auto_y {
         let mut y_min = app.viewport.y_min as f32;
         let mut y_max = app.viewport.y_max as f32;

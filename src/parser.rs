@@ -1,24 +1,193 @@
 use meval::{Expr, Error as MevalError};
 
+/// Тип формулы: обычная, производная или интеграл.
+#[derive(Clone, Debug, PartialEq)]
+pub enum FormulaType {
+    Regular,
+    Derivative,
+    Integral,
+}
+
 /// Разобранная формула, готовая к вычислению.
 #[derive(Clone, Debug)]
-pub struct ParsedFormula {
-    expr: Expr,
+pub enum ParsedFormula {
+    Regular { expr: Expr },
+    Derivative { inner: Box<ParsedFormula> },
+    Integral {
+        inner: Box<ParsedFormula>,
+        lower: f64,
+        upper: f64,
+    },
 }
 
 impl ParsedFormula {
     /// Вычислить f(x). Возвращает NaN при ошибке.
     pub fn eval(&self, x: f64) -> f64 {
-        self.expr.clone().bind("x")
-            .ok()
-            .map(|f| f(x))
-            .unwrap_or(f64::NAN)
+        match self {
+            Self::Regular { expr } => {
+                expr.clone()
+                    .bind("x")
+                    .ok()
+                    .map(|f| f(x))
+                    .unwrap_or(f64::NAN)
+            }
+            Self::Derivative { inner } => inner.eval(x),
+            Self::Integral { inner: _, lower: _, upper: _ } => f64::NAN,
+        }
     }
+
+    /// Получить тип формулы.
+    pub fn formula_type(&self) -> FormulaType {
+        match self {
+            Self::Regular { .. } => FormulaType::Regular,
+            Self::Derivative { .. } => FormulaType::Derivative,
+            Self::Integral { .. } => FormulaType::Integral,
+        }
+    }
+
+    /// Получить внутреннюю формулу (для производной/интеграла).
+    pub fn inner(&self) -> Option<&ParsedFormula> {
+        match self {
+            Self::Derivative { inner } => Some(inner),
+            Self::Integral { inner, .. } => Some(inner),
+            Self::Regular { .. } => None,
+        }
+    }
+
+    /// Получить границы интеграла (если это интеграл).
+    pub fn integral_bounds(&self) -> Option<(f64, f64)> {
+        match self {
+            Self::Integral { lower, upper, .. } => Some((*lower, *upper)),
+            _ => None,
+        }
+    }
+}
+
+/// Найти позицию закрывающей скобки, соответствующей открывающей на позиции `start`.
+fn find_matching_paren(s: &str, start: usize) -> Option<usize> {
+    let mut depth = 0;
+    for (i, ch) in s.char_indices().skip(start) {
+        match ch {
+            '(' => depth += 1,
+            ')' => {
+                if depth == 0 {
+                    return Some(i);
+                }
+                depth -= 1;
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Разделить аргументы функции по запятым, учитывая вложенные скобки.
+fn split_args(s: &str) -> Vec<String> {
+    let mut args = Vec::new();
+    let mut current = String::new();
+    let mut depth = 0;
+
+    for ch in s.chars() {
+        match ch {
+            '(' => {
+                depth += 1;
+                current.push(ch);
+            }
+            ')' => {
+                depth -= 1;
+                current.push(ch);
+            }
+            ',' if depth == 0 => {
+                args.push(current.trim().to_string());
+                current.clear();
+            }
+            _ => current.push(ch),
+        }
+    }
+    if !current.is_empty() {
+        args.push(current.trim().to_string());
+    }
+    args
 }
 
 /// Результат парсинга: либо успех, либо сообщение об ошибке.
 pub fn parse(input: &str) -> Result<ParsedFormula, String> {
-    let expr: Expr = input
+    let trimmed = input.trim();
+
+    if trimmed.is_empty() {
+        return Err("Пустая формула".into());
+    }
+
+    // Обработка deriv(...)
+    if let Some(inner_start) = trimmed.strip_prefix("deriv(") {
+        if let Some(inner_end) = inner_start.strip_suffix(')') {
+            let inner_expr = inner_end.trim();
+            let inner = parse(inner_expr).map_err(|e| format!("deriv: {e}"))?;
+            return Ok(ParsedFormula::Derivative {
+                inner: Box::new(inner),
+            });
+        }
+        return Err("Неверный синтаксис deriv(...). Ожидается deriv(выражение)".into());
+    }
+
+    // Обработка integral(..., a, b)
+    if let Some(inner_start) = trimmed.strip_prefix("integral(") {
+        if let Some(idx) = find_matching_paren(inner_start, 0) {
+            let args_str = &inner_start[..idx];
+            let args = split_args(args_str);
+
+            if args.len() < 3 {
+                return Err(
+                    "Неверный синтаксис integral(...). Ожидается integral(выражение, a, b)"
+                        .into(),
+                );
+            }
+
+            let inner_expr = &args[0];
+            let lower_str = &args[1];
+            let upper_str = &args[2];
+
+            let inner = parse(inner_expr).map_err(|e| format!("integral: {e}"))?;
+
+            // Парсим границы как выражения (должны быть константами)
+            let lower_expr: Expr = lower_str
+                .parse()
+                .map_err(|e: MevalError| format!("Граница lower: {e}"))?;
+            let lower = lower_expr
+                .bind("x")
+                .ok()
+                .map(|f| f(0.0))
+                .unwrap_or(f64::NAN);
+
+            let upper_expr: Expr = upper_str
+                .parse()
+                .map_err(|e: MevalError| format!("Граница upper: {e}"))?;
+            let upper = upper_expr
+                .bind("x")
+                .ok()
+                .map(|f| f(0.0))
+                .unwrap_or(f64::NAN);
+
+            if !lower.is_finite() || !upper.is_finite() {
+                return Err(
+                    "Границы интеграла должны быть конечными числами".into(),
+                );
+            }
+
+            return Ok(ParsedFormula::Integral {
+                inner: Box::new(inner),
+                lower,
+                upper,
+            });
+        }
+        return Err(
+            "Неверный синтаксис integral(...). Ожидается integral(выражение, a, b)"
+                .into(),
+        );
+    }
+
+    // Обычная формула
+    let expr: Expr = trimmed
         .parse::<Expr>()
         .map_err(|e: MevalError| format!("{e}"))?;
 
@@ -27,7 +196,7 @@ pub fn parse(input: &str) -> Result<ParsedFormula, String> {
         return Err("Формула должна использовать переменную x".into());
     }
 
-    Ok(ParsedFormula { expr })
+    Ok(ParsedFormula::Regular { expr })
 }
 
 #[cfg(test)]
@@ -185,5 +354,127 @@ mod tests {
         let formula = parse("x^3").unwrap();
         let y = formula.eval(1e-5);
         assert!(y.abs() - 1e-15 < 1e-20);
+    }
+
+    // --- Производная ---
+
+    #[test]
+    fn parse_deriv_simple() {
+        let result = parse("deriv(sin(x))");
+        assert!(result.is_ok());
+        let formula = result.unwrap();
+        assert_eq!(formula.formula_type(), FormulaType::Derivative);
+        // eval() возвращает внутреннюю функцию: sin(0) = 0
+        assert!(formula.eval(0.0).abs() < 1e-10);
+        assert!(formula.eval(std::f64::consts::FRAC_PI_2).abs() - 1.0 < 1e-10);
+    }
+
+    #[test]
+    fn parse_deriv_polynomial() {
+        let result = parse("deriv(x^2)");
+        assert!(result.is_ok());
+        let formula = result.unwrap();
+        // eval() возвращает x^2, при x=3 → 9
+        assert!((formula.eval(3.0) - 9.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn parse_nested_deriv() {
+        let result = parse("deriv(deriv(sin(x)))");
+        assert!(result.is_ok());
+        let formula = result.unwrap();
+        // Вторая производная: eval возвращает sin(x)
+        assert!(formula.eval(0.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn parse_deriv_invalid_inner() {
+        let result = parse("deriv(sin(y))");
+        assert!(result.is_err());
+    }
+
+    // --- Интеграл ---
+
+    #[test]
+    fn parse_integral_simple() {
+        let result = parse("integral(x, 0, 1)");
+        assert!(result.is_ok());
+        let formula = result.unwrap();
+        assert_eq!(formula.formula_type(), FormulaType::Integral);
+        // ∫₀¹ x dx = 0.5
+        let bounds = formula.integral_bounds().unwrap();
+        assert!((bounds.0 - 0.0).abs() < 1e-10);
+        assert!((bounds.1 - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn parse_integral_with_constants() {
+        let result = parse("integral(1, 0, pi)");
+        assert!(result.is_ok());
+        let formula = result.unwrap();
+        // ∫₀^π 1 dx = π
+        let bounds = formula.integral_bounds().unwrap();
+        assert!((bounds.1 - std::f64::consts::PI).abs() < 1e-10);
+    }
+
+    #[test]
+    fn parse_integral_trig() {
+        let result = parse("integral(sin(x), 0, pi)");
+        assert!(result.is_ok());
+        let formula = result.unwrap();
+        // ∫₀^π sin(x) dx = 2
+        let bounds = formula.integral_bounds().unwrap();
+        assert!((bounds.0 - 0.0).abs() < 1e-10);
+        assert!((bounds.1 - std::f64::consts::PI).abs() < 1e-10);
+    }
+
+    #[test]
+    fn parse_integral_too_few_args() {
+        let result = parse("integral(x, 0)");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_integral_invalid_bounds() {
+        let result = parse("integral(x, a, b)");
+        assert!(result.is_err());
+    }
+
+    // --- split_args ---
+
+    #[test]
+    fn split_args_basic() {
+        let args = split_args("sin(x), 0, pi");
+        assert_eq!(args.len(), 3);
+        assert_eq!(args[0], "sin(x)");
+        assert_eq!(args[1], "0");
+        assert_eq!(args[2], "pi");
+    }
+
+    #[test]
+    fn split_args_nested() {
+        let args = split_args("sin(x+y), 0, pi");
+        assert_eq!(args.len(), 3);
+        assert_eq!(args[0], "sin(x+y)");
+    }
+
+    // --- formula_type ---
+
+    #[test]
+    fn formula_type_regular() {
+        let f = parse("x^2").unwrap();
+        assert_eq!(f.formula_type(), FormulaType::Regular);
+    }
+
+    #[test]
+    fn formula_type_derivative() {
+        let f = parse("deriv(sin(x))").unwrap();
+        assert_eq!(f.formula_type(), FormulaType::Derivative);
+    }
+
+    #[test]
+    fn formula_type_integral() {
+        let f = parse("integral(sin(x), 0, 1)").unwrap();
+        assert_eq!(f.formula_type(), FormulaType::Integral);
     }
 }

@@ -1,6 +1,6 @@
 //! Центральная область: холст для отрисовки графиков, pan/zoom, легенда.
 
-use egui::{Color32, Context, Rect, Sense, Ui, Vec2};
+use egui::{pos2, Color32, Context, Rect, Sense, Ui, Vec2};
 
 use crate::app::PlotApp;
 use crate::renderer;
@@ -51,15 +51,38 @@ pub fn show_canvas_panel(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui) {
 
     for g in &app.graphs {
         if let Some(ref data) = g.data {
-            renderer::draw_curve(&painter, rect, &app.viewport, &data.points, &g.style);
+            if let Some(ref parsed) = g.parsed {
+                let formula_type = parsed.formula_type();
+                renderer::draw_curve_with_type(
+                    &painter,
+                    rect,
+                    &app.viewport,
+                    &data.points,
+                    &g.style,
+                    formula_type,
+                );
+                // Для интегралов — закрашенная область
+                if !data.fill_points.is_empty() {
+                    renderer::draw_filled_curve(
+                        &painter,
+                        rect,
+                        &app.viewport,
+                        &data.fill_points,
+                        &g.style,
+                    );
+                }
+            }
         }
     }
 
     // Легенда
     draw_legend(&painter, rect, &app.graphs);
 
+    // Точки пересечения
+    draw_intersections(&painter, rect, &app.viewport, &app.graphs);
+
     // Координаты мыши
-    draw_mouse_coords(&painter, rect, &app.viewport);
+    draw_mouse_coords(ui, &painter, rect, &app.viewport);
 }
 
 /// Отрисовка легенды (список видимых графиков).
@@ -85,14 +108,88 @@ fn draw_legend(painter: &egui::Painter, rect: Rect, graphs: &[crate::app::GraphE
 }
 
 /// Отрисовка координат курсора мыши.
-fn draw_mouse_coords(painter: &egui::Painter, rect: Rect, viewport: &crate::renderer::Viewport) {
-    // Получаем позицию мыши через painter — но painter не имеет доступа к input.
-    // Используем трюк: painter может получить контекст через painter.ctx(), но это сложно.
-    // Вместо этого — координаты будут обновлены через callback в update().
-    // Для простоты — пропускаем отрисовку координат здесь, так как painter не имеет доступа к ui.input.
-    // Это ограничение egui — painter не может читать input напрямую.
-    let _ = painter;
-    let _ = rect;
-    let _ = viewport;
-    // TODO: координаты мыши требуют доступа к ui.input, перенести в update()
+fn draw_mouse_coords(
+    ui: &Ui,
+    painter: &egui::Painter,
+    rect: Rect,
+    viewport: &crate::renderer::Viewport,
+) {
+    if let Some(hover_pos) = ui.input(|i| i.pointer.hover_pos()) {
+        if hover_pos.x >= rect.left() && hover_pos.x <= rect.right()
+            && hover_pos.y >= rect.top() && hover_pos.y <= rect.bottom()
+        {
+            let (math_x, math_y) = viewport.screen_to_math(hover_pos, rect);
+            let label = format!("{:.3}, {:.3}", math_x, math_y);
+            painter.text(
+                pos2(rect.left() + 8.0, rect.bottom() - 24.0),
+                egui::Align2::LEFT_TOP,
+                label,
+                egui::FontId::monospace(12.0),
+                Color32::from_gray(200),
+            );
+        }
+    }
+}
+
+/// Отрисовка точек пересечения графиков.
+fn draw_intersections(
+    painter: &egui::Painter,
+    rect: Rect,
+    viewport: &crate::renderer::Viewport,
+    graphs: &[crate::app::GraphEntry],
+) {
+    let visible: Vec<&crate::app::GraphEntry> = graphs
+        .iter()
+        .filter(|g| g.style.visible && g.data.is_some())
+        .collect();
+
+    if visible.len() < 2 {
+        return;
+    }
+
+    for i in 0..visible.len() {
+        for j in (i + 1)..visible.len() {
+            let data_a = visible[i].data.as_ref().unwrap();
+            let data_b = visible[j].data.as_ref().unwrap();
+
+            let min_len = data_a.points.len().min(data_b.points.len());
+            for k in 1..min_len {
+                let (xa_a, ya_a) = data_a.points[k - 1];
+                let (_xa_b, yb_a) = data_b.points[k - 1];
+                let (xa_c, ya_c) = data_a.points[k];
+                let (_xa_d, yb_c) = data_b.points[k];
+
+                let diff_prev = ya_a - yb_a;
+                let diff_curr = ya_c - yb_c;
+
+                if diff_prev * diff_curr < 0.0 {
+                    let dx = xa_c - xa_a;
+                    if dx.abs() > 1e-15 {
+                        let t = diff_prev / (diff_prev - diff_curr);
+                        let ix = xa_a + t * dx;
+                        let slope_a = (ya_c - ya_a) / dx;
+                        let slope_b = (yb_c - yb_a) / dx;
+                        let iy_a = ya_a + slope_a * (ix - xa_a);
+                        let iy_b = yb_a + slope_b * (ix - xa_a);
+                        let iy = (iy_a + iy_b) / 2.0;
+
+                        if ix.is_finite() && iy.is_finite()
+                            && ix >= viewport.x_min && ix <= viewport.x_max
+                            && iy >= viewport.y_min && iy <= viewport.y_max
+                        {
+                            let screen_pos = viewport.math_to_screen(ix, iy, rect);
+                            // Рисуем белую точку с обводкой
+                            painter.circle_filled(screen_pos, 5.0, egui::Color32::WHITE);
+                            painter.circle_stroke(
+                                screen_pos,
+                                5.0,
+                                egui::Stroke::new(1.5_f32, egui::Color32::BLACK),
+                            );
+                            return; // Показываем только первое пересечение
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

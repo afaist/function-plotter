@@ -1,5 +1,7 @@
 use egui::{Color32, Painter, Pos2, Rect, Stroke, Vec2};
 
+use crate::parser::FormulaType;
+
 /// Настройки отображения для одного графика.
 #[derive(Clone)]
 pub struct PlotStyle {
@@ -67,6 +69,7 @@ impl Viewport {
 }
 
 /// Отрисовка одного графика по точкам.
+#[allow(dead_code)]
 pub fn draw_curve(
     painter: &Painter,
     rect: Rect,
@@ -95,6 +98,158 @@ pub fn draw_curve(
 
     if screen_points.len() >= 2 {
         painter.add(egui::Shape::line(screen_points, stroke));
+    }
+}
+
+/// Отрисовка закрашенной области под кривой (для интегралов).
+pub fn draw_filled_curve(
+    painter: &Painter,
+    rect: Rect,
+    viewport: &Viewport,
+    fill_points: &[(f64, f64)],
+    style: &PlotStyle,
+) {
+    if fill_points.len() < 2 {
+        return;
+    }
+
+    // Создаём полупрозрачный цвет вручную
+    let r = style.color.r();
+    let g = style.color.g();
+    let b = style.color.b();
+    let fill_color = egui::Color32::from_rgba_premultiplied(r, g, b, 38); // 0.15 * 255 ≈ 38
+
+    let mut polygon: Vec<Pos2> = Vec::with_capacity(fill_points.len() + 2);
+
+    // Находим экранную Y-координату для оси X
+    let y_zero_px = if viewport.y_min <= 0.0 && viewport.y_max >= 0.0 {
+        let p = viewport.math_to_screen(0.0, 0.0, rect);
+        p.y
+    } else if viewport.y_max < 0.0 {
+        rect.bottom()
+    } else {
+        rect.top()
+    };
+
+    for &(x, y) in fill_points {
+        if !y.is_finite() {
+            continue;
+        }
+        let sp = viewport.math_to_screen(x, y, rect);
+        polygon.push(sp);
+    }
+
+    if polygon.len() < 2 {
+        return;
+    }
+
+    // Замыкаем полигон по нижней границе
+    let last = polygon.last().unwrap();
+    polygon.push(Pos2::new(last.x, y_zero_px));
+    let first = polygon.first().unwrap();
+    polygon.push(Pos2::new(first.x, y_zero_px));
+
+    painter.add(egui::Shape::convex_polygon(polygon, fill_color, Stroke::default()));
+}
+
+/// Отрисовка одного графика по точкам (с поддержкой производных — пунктиром).
+pub fn draw_curve_with_type(
+    painter: &Painter,
+    rect: Rect,
+    viewport: &Viewport,
+    points: &[(f64, f64)],
+    style: &PlotStyle,
+    formula_type: FormulaType,
+) {
+    if !style.visible {
+        return;
+    }
+
+    let stroke = Stroke::new(1.5_f32, style.color);
+    let dash_pattern = match formula_type {
+        FormulaType::Derivative => {
+            // Пунктирная линия для производных — рисуем сегментами
+            let sp: Vec<Pos2> = points
+                .iter()
+                .filter_map(|&(x, y)| {
+                    if y.is_finite() {
+                        Some(viewport.math_to_screen(x, y, rect))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            draw_dashed_line(painter, &sp, stroke, (4.0, 4.0));
+            return;
+        }
+        FormulaType::Integral => {
+            // Для интегралов — тонкая сплошная линия
+            Stroke::new(1.0_f32, style.color)
+        }
+        FormulaType::Regular => stroke,
+    };
+
+    let mut screen_points: Vec<Pos2> = Vec::with_capacity(points.len());
+
+    for &(x, y) in points {
+        if !y.is_finite() {
+            if screen_points.len() >= 2 {
+                painter.add(egui::Shape::line(screen_points.clone(), dash_pattern));
+            }
+            screen_points.clear();
+            continue;
+        }
+        screen_points.push(viewport.math_to_screen(x, y, rect));
+    }
+
+    if screen_points.len() >= 2 {
+        painter.add(egui::Shape::line(screen_points, dash_pattern));
+    }
+}
+
+/// Нарисовать пунктирную линию сегментами.
+fn draw_dashed_line(painter: &Painter, points: &[Pos2], stroke: Stroke, dash: (f32, f32)) {
+    if points.len() < 2 {
+        return;
+    }
+    let (on, off) = dash;
+    let mut draw_on = true;
+    let mut remaining = on;
+
+    for i in 0..points.len() {
+        let a = points[i];
+        if i + 1 >= points.len() {
+            break;
+        }
+        let b = points[i + 1];
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
+        let len = (dx * dx + dy * dy).sqrt();
+
+        if len < 0.001 {
+            continue;
+        }
+
+        let mut pos = 0.0_f32;
+        let mut seg_start = a;
+
+        while pos < len {
+            let seg_end = (pos + remaining).min(len);
+            let t = (seg_end - pos) / len;
+            let end = Pos2::new(a.x + dx * t, a.y + dy * t);
+
+            if draw_on {
+                painter.line_segment([seg_start, end], stroke);
+            }
+
+            pos = seg_end;
+            if pos >= len {
+                break;
+            }
+            remaining = if draw_on { off } else { on };
+            draw_on = !draw_on;
+            seg_start = end;
+        }
     }
 }
 
