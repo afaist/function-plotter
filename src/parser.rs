@@ -11,8 +11,12 @@ pub enum FormulaType {
 /// Разобранная формула, готовая к вычислению.
 #[derive(Clone, Debug)]
 pub enum ParsedFormula {
-    Regular { compiled: Executable },
-    Derivative { inner: Box<ParsedFormula> },
+    Regular {
+        compiled: Executable,
+    },
+    Derivative {
+        inner: Box<ParsedFormula>,
+    },
     Integral {
         inner: Box<ParsedFormula>,
         lower: f64,
@@ -24,11 +28,13 @@ impl ParsedFormula {
     /// Вычислить f(x). Возвращает NaN при ошибке.
     pub fn eval(&self, x: f64) -> f64 {
         match self {
-            Self::Regular { compiled } => {
-                compiled.clone().eval(&[x]).unwrap_or(f64::NAN)
-            }
+            Self::Regular { compiled } => compiled.clone().eval(&[x]).unwrap_or(f64::NAN),
             Self::Derivative { inner } => inner.eval(x),
-            Self::Integral { inner: _, lower: _, upper: _ } => f64::NAN,
+            Self::Integral {
+                inner: _,
+                lower: _,
+                upper: _,
+            } => f64::NAN,
         }
     }
 
@@ -134,8 +140,7 @@ pub fn parse(input: &str) -> Result<ParsedFormula, String> {
 
             if args.len() < 3 {
                 return Err(
-                    "Неверный синтаксис integral(...). Ожидается integral(выражение, a, b)"
-                        .into(),
+                    "Неверный синтаксис integral(...). Ожидается integral(выражение, a, b)".into(),
                 );
             }
 
@@ -146,16 +151,16 @@ pub fn parse(input: &str) -> Result<ParsedFormula, String> {
             let inner = parse(inner_expr).map_err(|e| format!("integral: {e}"))?;
 
             // Парсим границы как выражения (должны быть константами)
-            let lower_expr = Expression::parse(lower_str)
-                .map_err(|e| format!("Граница lower: {e}"))?;
+            let lower_expr =
+                Expression::parse(lower_str).map_err(|e| format!("Граница lower: {e}"))?;
             let lower = lower_expr
                 .compile_no_vars()
                 .ok()
                 .and_then(|e| e.eval(&[]).ok())
                 .unwrap_or(f64::NAN);
 
-            let upper_expr = Expression::parse(upper_str)
-                .map_err(|e| format!("Граница upper: {e}"))?;
+            let upper_expr =
+                Expression::parse(upper_str).map_err(|e| format!("Граница upper: {e}"))?;
             let upper = upper_expr
                 .compile_no_vars()
                 .ok()
@@ -163,9 +168,7 @@ pub fn parse(input: &str) -> Result<ParsedFormula, String> {
                 .unwrap_or(f64::NAN);
 
             if !lower.is_finite() || !upper.is_finite() {
-                return Err(
-                    "Границы интеграла должны быть конечными числами".into(),
-                );
+                return Err("Границы интеграла должны быть конечными числами".into());
             }
 
             return Ok(ParsedFormula::Integral {
@@ -174,19 +177,13 @@ pub fn parse(input: &str) -> Result<ParsedFormula, String> {
                 upper,
             });
         }
-        return Err(
-            "Неверный синтаксис integral(...). Ожидается integral(выражение, a, b)"
-                .into(),
-        );
+        return Err("Неверный синтаксис integral(...). Ожидается integral(выражение, a, b)".into());
     }
 
     // Обычная формула
-    let expr = Expression::parse(trimmed)
-        .map_err(|e| format!("{e}"))?;
+    let expr = Expression::parse(trimmed).map_err(|e| format!("{e}"))?;
 
-    let compiled = expr
-        .compile(&["x"])
-        .map_err(|e| format!("{e}"))?;
+    let compiled = expr.compile(&["x"]).map_err(|e| format!("{e}"))?;
 
     Ok(ParsedFormula::Regular { compiled })
 }

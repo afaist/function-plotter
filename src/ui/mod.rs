@@ -1,2 +1,2 @@
-pub mod controls;
 pub mod canvas;
+pub mod controls;

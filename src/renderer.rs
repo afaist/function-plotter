@@ -149,7 +149,11 @@ pub fn draw_filled_curve(
     let first = polygon.first().unwrap();
     polygon.push(Pos2::new(first.x, y_zero_px));
 
-    painter.add(egui::Shape::convex_polygon(polygon, fill_color, Stroke::default()));
+    painter.add(egui::Shape::convex_polygon(
+        polygon,
+        fill_color,
+        Stroke::default(),
+    ));
 }
 
 /// Отрисовка одного графика по точкам (с поддержкой производных — пунктиром).

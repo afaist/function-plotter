@@ -23,8 +23,7 @@ fn render_graph_entry(
     need_recompute: &mut bool,
 ) {
     ui.horizontal(|ui| {
-        let (rect, resp) =
-            ui.allocate_exact_size(egui::vec2(12.0, 12.0), egui::Sense::click());
+        let (rect, resp) = ui.allocate_exact_size(egui::vec2(12.0, 12.0), egui::Sense::click());
         if resp.clicked() {
             *selected_graph = Some(i);
         }
@@ -80,14 +79,30 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                 };
                 frame.show(ui, |ui| {
                     render_graph_entry(
-                        ui, i, color, &label, &mut visible, &mut formula, &parse_error,
-                        &mut app.selected_graph, &mut need_remove, &mut need_recompute,
+                        ui,
+                        i,
+                        color,
+                        &label,
+                        &mut visible,
+                        &mut formula,
+                        &parse_error,
+                        &mut app.selected_graph,
+                        &mut need_remove,
+                        &mut need_recompute,
                     );
                 });
             } else {
                 render_graph_entry(
-                    ui, i, color, &label, &mut visible, &mut formula, &parse_error,
-                    &mut app.selected_graph, &mut need_remove, &mut need_recompute,
+                    ui,
+                    i,
+                    color,
+                    &label,
+                    &mut visible,
+                    &mut formula,
+                    &parse_error,
+                    &mut app.selected_graph,
+                    &mut need_remove,
+                    &mut need_recompute,
                 );
             }
         });
@@ -160,17 +175,16 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     ui.separator();
     ui.heading("Диапазон Y");
     ui.checkbox(&mut app.auto_y, "Авто-масштаб Y");
-    
+
     // Адаптивный алгоритм
     ui.add_space(4.0);
     ui.checkbox(&mut app.adaptive, "Адаптивная плотность");
     if app.adaptive {
         ui.horizontal(|ui| {
-            ui.add(egui::Slider::new(&mut app.adaptive_tolerance, 0.0001..=1.0)
-                .text("точность"));
+            ui.add(egui::Slider::new(&mut app.adaptive_tolerance, 0.0001..=1.0).text("точность"));
         });
     }
-    
+
     if !app.auto_y {
         let mut y_min = app.viewport.y_min as f32;
         let mut y_max = app.viewport.y_max as f32;
@@ -216,16 +230,12 @@ fn show_export_ui(app: &mut PlotApp, ctx: &Context, ui: &mut Ui, _need_recompute
                 if let Some(p) = path {
                     match export::export_single(f, app.x_min, app.x_max, app.n_points, &p) {
                         Ok(()) => {
-                            app.status_msg = Some(StatusMessage::Info(format!(
-                                "Сохранено: {}",
-                                p.display()
-                            )));
+                            app.status_msg =
+                                Some(StatusMessage::Info(format!("Сохранено: {}", p.display())));
                             app.status_time = Some(Instant::now());
                         }
                         Err(e) => {
-                            app.status_msg = Some(StatusMessage::Error(format!(
-                                "Ошибка: {e}"
-                            )));
+                            app.status_msg = Some(StatusMessage::Error(format!("Ошибка: {e}")));
                             app.status_time = Some(Instant::now());
                         }
                     }
@@ -249,18 +259,21 @@ fn show_export_ui(app: &mut PlotApp, ctx: &Context, ui: &mut Ui, _need_recompute
         if !formulas.is_empty() {
             let path = save_dialog("graphs.csv");
             if let Some(p) = path {
-                match export::export_multi(&formulas, &labels, app.x_min, app.x_max, app.n_points, &p) {
+                match export::export_multi(
+                    &formulas,
+                    &labels,
+                    app.x_min,
+                    app.x_max,
+                    app.n_points,
+                    &p,
+                ) {
                     Ok(()) => {
-                        app.status_msg = Some(StatusMessage::Info(format!(
-                            "Сохранено: {}",
-                            p.display()
-                        )));
+                        app.status_msg =
+                            Some(StatusMessage::Info(format!("Сохранено: {}", p.display())));
                         app.status_time = Some(Instant::now());
                     }
                     Err(e) => {
-                        app.status_msg = Some(StatusMessage::Error(format!(
-                            "Ошибка: {e}"
-                        )));
+                        app.status_msg = Some(StatusMessage::Error(format!("Ошибка: {e}")));
                         app.status_time = Some(Instant::now());
                     }
                 }
@@ -284,9 +297,7 @@ fn show_export_ui(app: &mut PlotApp, ctx: &Context, ui: &mut Ui, _need_recompute
                     app.status_time = Some(Instant::now());
                 }
                 Err(e) => {
-                    app.status_msg = Some(StatusMessage::Error(format!(
-                        "Ошибка PNG: {e}"
-                    )));
+                    app.status_msg = Some(StatusMessage::Error(format!("Ошибка PNG: {e}")));
                     app.status_time = Some(Instant::now());
                 }
             }
@@ -307,16 +318,12 @@ fn show_session_ui(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui) {
             match session.save_to_file(p) {
                 Ok(()) => {
                     app.session_path = Some(p.clone());
-                    app.status_msg = Some(StatusMessage::Info(format!(
-                        "Сохранено: {}",
-                        p.display()
-                    )));
+                    app.status_msg =
+                        Some(StatusMessage::Info(format!("Сохранено: {}", p.display())));
                     app.status_time = Some(Instant::now());
                 }
                 Err(e) => {
-                    app.status_msg = Some(StatusMessage::Error(format!(
-                        "Ошибка: {e}"
-                    )));
+                    app.status_msg = Some(StatusMessage::Error(format!("Ошибка: {e}")));
                     app.status_time = Some(Instant::now());
                 }
             }
@@ -333,16 +340,12 @@ fn show_session_ui(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui) {
                 Ok(session_data) => {
                     session_data.apply_to_app(app);
                     app.session_path = Some(p.clone());
-                    app.status_msg = Some(StatusMessage::Info(format!(
-                        "Загружено: {}",
-                        p.display()
-                    )));
+                    app.status_msg =
+                        Some(StatusMessage::Info(format!("Загружено: {}", p.display())));
                     app.status_time = Some(Instant::now());
                 }
                 Err(e) => {
-                    app.status_msg = Some(StatusMessage::Error(format!(
-                        "Ошибка: {e}"
-                    )));
+                    app.status_msg = Some(StatusMessage::Error(format!("Ошибка: {e}")));
                     app.status_time = Some(Instant::now());
                 }
             }
@@ -350,9 +353,7 @@ fn show_session_ui(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui) {
     }
 
     // Ctrl+S
-    if ui
-        .input(|i| i.key_pressed(egui::Key::S) && (i.modifiers.ctrl || i.modifiers.command))
-    {
+    if ui.input(|i| i.key_pressed(egui::Key::S) && (i.modifiers.ctrl || i.modifiers.command)) {
         if let Some(ref p) = app.session_path {
             let session = crate::session::SessionData::from_app(app);
             match session.save_to_file(p) {
@@ -361,9 +362,7 @@ fn show_session_ui(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui) {
                     app.status_time = Some(Instant::now());
                 }
                 Err(e) => {
-                    app.status_msg = Some(StatusMessage::Error(format!(
-                        "Ошибка: {e}"
-                    )));
+                    app.status_msg = Some(StatusMessage::Error(format!("Ошибка: {e}")));
                     app.status_time = Some(Instant::now());
                 }
             }

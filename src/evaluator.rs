@@ -19,12 +19,7 @@ pub struct PlotData {
 }
 
 impl PlotData {
-    pub fn compute(
-        formula: &ParsedFormula,
-        x_min: f64,
-        x_max: f64,
-        n_points: usize,
-    ) -> Self {
+    pub fn compute(formula: &ParsedFormula, x_min: f64, x_max: f64, n_points: usize) -> Self {
         let n = n_points.max(2);
         let dx = (x_max - x_min) / (n as f64 - 1.0);
 

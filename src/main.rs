@@ -1,8 +1,8 @@
 mod app;
-mod parser;
 mod evaluator;
-mod renderer;
 mod export;
+mod parser;
+mod renderer;
 mod session;
 mod ui;
 
@@ -20,22 +20,33 @@ mod app_tests {
         let mut app = PlotApp::default();
         app.graphs.clear();
         app.graphs.push(GraphEntry::new("f1", Color32::RED, "x"));
-        app.graphs.push(GraphEntry::new("f2", Color32::BLUE, "sin(x)"));
+        app.graphs
+            .push(GraphEntry::new("f2", Color32::BLUE, "sin(x)"));
         app.recompute_all();
 
         let intersections = app.find_intersections();
         assert!(!intersections.is_empty(), "Ожидаем пересечение x=sin(x)");
         let first = &intersections[0];
-        assert!(first.x.abs() < 0.5, "Пересечение должно быть около 0, got {}", first.x);
-        assert!(first.y.abs() < 0.5, "Y пересечения должно быть около 0, got {}", first.y);
+        assert!(
+            first.x.abs() < 0.5,
+            "Пересечение должно быть около 0, got {}",
+            first.x
+        );
+        assert!(
+            first.y.abs() < 0.5,
+            "Y пересечения должно быть около 0, got {}",
+            first.y
+        );
     }
 
     #[test]
     fn test_find_intersections_no_intersection() {
         let mut app = PlotApp::default();
         app.graphs.clear();
-        app.graphs.push(GraphEntry::new("f1", Color32::RED, "x + 10"));
-        app.graphs.push(GraphEntry::new("f2", Color32::BLUE, "x - 10"));
+        app.graphs
+            .push(GraphEntry::new("f1", Color32::RED, "x + 10"));
+        app.graphs
+            .push(GraphEntry::new("f2", Color32::BLUE, "x - 10"));
         app.recompute_all();
 
         let intersections = app.find_intersections();
@@ -56,8 +67,7 @@ mod app_tests {
 
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1000.0, 700.0]),
+        viewport: egui::ViewportBuilder::default().with_inner_size([1000.0, 700.0]),
         ..Default::default()
     };
     eframe::run_native(

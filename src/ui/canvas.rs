@@ -8,12 +8,11 @@ use crate::renderer;
 /// Отрисовка центральной панели (canvas).
 pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     // Получаем реальный размер экрана и вычитаем левую панель
-    let screen_rect = ctx.input(|i| i.raw.screen_rect).unwrap_or_else(|| egui::Rect::NOTHING);
+    let screen_rect = ctx
+        .input(|i| i.raw.screen_rect)
+        .unwrap_or_else(|| egui::Rect::NOTHING);
     let left = ui.max_rect().left();
-    let rect = Rect::from_x_y_ranges(
-        left..=screen_rect.right(),
-        screen_rect.y_range(),
-    );
+    let rect = Rect::from_x_y_ranges(left..=screen_rect.right(), screen_rect.y_range());
     let response = ui.allocate_rect(rect, Sense::click_and_drag());
     ui.advance_cursor_after_rect(rect);
 
@@ -42,10 +41,10 @@ pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
             let current = response.interact_pointer_pos().unwrap_or(start);
             let dx_screen = current.x - start.x;
             let dy_screen = current.y - start.y;
-            let dx_math = -dx_screen as f64 / rect.width() as f64
-                * (app.viewport.x_max - app.viewport.x_min);
-            let dy_math = dy_screen as f64 / rect.height() as f64
-                * (app.viewport.y_max - app.viewport.y_min);
+            let dx_math =
+                -dx_screen as f64 / rect.width() as f64 * (app.viewport.x_max - app.viewport.x_min);
+            let dy_math =
+                dy_screen as f64 / rect.height() as f64 * (app.viewport.y_max - app.viewport.y_min);
             app.viewport.pan(dx_math, dy_math);
             app.mark_all_dirty();
             app.drag_start = Some(current);
@@ -132,8 +131,10 @@ fn draw_mouse_coords(
     viewport: &crate::renderer::Viewport,
 ) {
     if let Some(hover_pos) = ui.input(|i| i.pointer.hover_pos()) {
-        if hover_pos.x >= rect.left() && hover_pos.x <= rect.right()
-            && hover_pos.y >= rect.top() && hover_pos.y <= rect.bottom()
+        if hover_pos.x >= rect.left()
+            && hover_pos.x <= rect.right()
+            && hover_pos.y >= rect.top()
+            && hover_pos.y <= rect.bottom()
         {
             let (math_x, math_y) = viewport.screen_to_math(hover_pos, rect);
             let label = format!("{:.3}, {:.3}", math_x, math_y);
@@ -192,17 +193,18 @@ fn draw_intersections(
                         let iy_b = yb_a + slope_b * (ix - xa_a);
                         let iy = (iy_a + iy_b) / 2.0;
 
-                        if ix.is_finite() && iy.is_finite()
-                            && ix >= viewport.x_min && ix <= viewport.x_max
-                            && iy >= viewport.y_min && iy <= viewport.y_max
+                        if ix.is_finite()
+                            && iy.is_finite()
+                            && ix >= viewport.x_min
+                            && ix <= viewport.x_max
+                            && iy >= viewport.y_min
+                            && iy <= viewport.y_max
                         {
                             // Проверяем дубликаты
-                            let is_dup = found
-                                .iter()
-                                .any(|(fx, fy)| {
-                                    (fx - ix).abs() < 0.01 * (viewport.x_max - viewport.x_min)
-                                        && (fy - iy).abs() < 0.01 * (viewport.y_max - viewport.y_min)
-                                });
+                            let is_dup = found.iter().any(|(fx, fy)| {
+                                (fx - ix).abs() < 0.01 * (viewport.x_max - viewport.x_min)
+                                    && (fy - iy).abs() < 0.01 * (viewport.y_max - viewport.y_min)
+                            });
                             if !is_dup {
                                 found.push((ix, iy));
                             }

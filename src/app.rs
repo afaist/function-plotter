@@ -96,7 +96,7 @@ pub struct PlotApp {
     pub n_points: usize,
     pub viewport: Viewport,
     pub auto_y: bool,
-    pub adaptive: bool, // Использовать адаптивный алгоритм
+    pub adaptive: bool,          // Использовать адаптивный алгоритм
     pub adaptive_tolerance: f64, // Порог для адаптивного алгоритма
     pub drag_start: Option<Pos2>,
     pub session_path: Option<PathBuf>,
@@ -246,9 +246,11 @@ impl PlotApp {
                                     && iy <= self.viewport.y_max
                                 {
                                     // Проверяем дубликаты
-                                    let is_dup = intersections
-                                        .iter()
-                                        .any(|p: &IntersectionPoint| (p.x - ix).abs() < 0.01 * (self.viewport.x_max - self.viewport.x_min));
+                                    let is_dup =
+                                        intersections.iter().any(|p: &IntersectionPoint| {
+                                            (p.x - ix).abs()
+                                                < 0.01 * (self.viewport.x_max - self.viewport.x_min)
+                                        });
                                     if !is_dup {
                                         intersections.push(IntersectionPoint { x: ix, y: iy });
                                     }
@@ -296,16 +298,12 @@ impl eframe::App for PlotApp {
                     Ok(session_data) => {
                         session_data.apply_to_app(self);
                         self.session_path = Some(p.clone());
-                        self.status_msg = Some(StatusMessage::Info(format!(
-                            "Загружено: {}",
-                            p.display()
-                        )));
+                        self.status_msg =
+                            Some(StatusMessage::Info(format!("Загружено: {}", p.display())));
                         self.status_time = Some(Instant::now());
                     }
                     Err(e) => {
-                        self.status_msg = Some(StatusMessage::Error(format!(
-                            "Ошибка: {e}"
-                        )));
+                        self.status_msg = Some(StatusMessage::Error(format!("Ошибка: {e}")));
                         self.status_time = Some(Instant::now());
                     }
                 }
@@ -338,9 +336,7 @@ impl eframe::App for PlotApp {
         }
 
         // F5 / Ctrl+Enter — принудительная перерасчёт
-        if input.key_pressed(egui::Key::F5)
-            || (input.key_pressed(egui::Key::Enter) && ctrl)
-        {
+        if input.key_pressed(egui::Key::F5) || (input.key_pressed(egui::Key::Enter) && ctrl) {
             self.recompute_all();
         }
 

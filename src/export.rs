@@ -86,14 +86,23 @@ pub fn save_png(_ctx: &Context, app: &PlotApp) -> Result<(), String> {
 
     // Преобразуем математические координаты в экранные
     let math_to_screen = |x: f64, y: f64| -> (f32, f32) {
-        let sx = 160.0 + (x - app.viewport.x_min) / (app.viewport.x_max - app.viewport.x_min) * (width as f64 - 160.0);
-        let sy = 800.0 - (y - app.viewport.y_min) / (app.viewport.y_max - app.viewport.y_min) * (height as f64);
+        let sx = 160.0
+            + (x - app.viewport.x_min) / (app.viewport.x_max - app.viewport.x_min)
+                * (width as f64 - 160.0);
+        let sy = 800.0
+            - (y - app.viewport.y_min) / (app.viewport.y_max - app.viewport.y_min)
+                * (height as f64);
         (sx as f32, sy as f32)
     };
 
     // Рисование линии (Bresenham)
     let draw_line = |img: &mut RgbaImage, x0: f32, y0: f32, x1: f32, y1: f32, color: Rgba<u8>| {
-        let (x0, y0, x1, y1) = (x0.round() as i32, y0.round() as i32, x1.round() as i32, y1.round() as i32);
+        let (x0, y0, x1, y1) = (
+            x0.round() as i32,
+            y0.round() as i32,
+            x1.round() as i32,
+            y1.round() as i32,
+        );
         let dx = (x1 - x0).abs() as i32;
         let dy = (y1 - y0).abs() as i32;
         let sx = if x0 < x1 { 1 } else { -1 };
@@ -110,10 +119,18 @@ pub fn save_png(_ctx: &Context, app: &PlotApp) -> Result<(), String> {
                 pixel[2] = (color[2] as f32 * a + pixel[2] as f32 * (1.0 - a)).round() as u8;
                 pixel[3] = 255;
             }
-            if x == x1 && y == y1 { break; }
+            if x == x1 && y == y1 {
+                break;
+            }
             let e2 = 2 * err;
-            if e2 > -dy { err -= dy; x += sx; }
-            if e2 < dx { err += dx; y += sy; }
+            if e2 > -dy {
+                err -= dy;
+                x += sx;
+            }
+            if e2 < dx {
+                err += dx;
+                y += sy;
+            }
         }
     };
 
@@ -125,15 +142,20 @@ pub fn save_png(_ctx: &Context, app: &PlotApp) -> Result<(), String> {
     let step_y = height_range / base_grid_count;
 
     let nice_step = |step: f64| -> f64 {
-        if step == 0.0 { return 1.0; }
+        if step == 0.0 {
+            return 1.0;
+        }
         let mag = 10.0_f64.powf(step.abs().log10().floor());
         let unit = step / mag;
         let candidates = [1.0, 2.0, 5.0];
-        let best = candidates.iter()
+        let best = candidates
+            .iter()
             .min_by(|a, b| {
                 let diff_a = (**a - unit).abs();
                 let diff_b = (**b - unit).abs();
-                diff_a.partial_cmp(&diff_b).unwrap_or(std::cmp::Ordering::Equal)
+                diff_a
+                    .partial_cmp(&diff_b)
+                    .unwrap_or(std::cmp::Ordering::Equal)
             })
             .copied()
             .unwrap_or(1.0);
@@ -202,7 +224,14 @@ pub fn save_png(_ctx: &Context, app: &PlotApp) -> Result<(), String> {
     for g in &app.graphs {
         if g.style.visible {
             let color = Rgba([g.style.color[0], g.style.color[1], g.style.color[2], 255]);
-            draw_line(&mut img, 170.0, legend_y as f32 + 6.0, 186.0, legend_y as f32 + 6.0, color);
+            draw_line(
+                &mut img,
+                170.0,
+                legend_y as f32 + 6.0,
+                186.0,
+                legend_y as f32 + 6.0,
+                color,
+            );
             legend_y += 18;
         }
     }
