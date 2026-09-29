@@ -347,15 +347,17 @@ impl eframe::App for PlotApp {
         // Автоматический пересчёт dirty графиков
         self.recompute_all();
 
-        // --- Левая панель управления и холст ---
+        // --- Левая панель управления ---
         let ctx = ui.ctx().clone();
-        egui::CentralPanel::default().show(ui, |ui| {
-            // --- Левая панель управления ---
-            ui.allocate_ui(egui::vec2(240.0, f32::INFINITY), |ui| {
+        egui::Panel::left("controls")
+            .resizable(true)
+            .default_size(260.0)
+            .show(ui, |ui| {
                 crate::ui::controls::show_controls_panel(self, &ctx, ui);
             });
-            
-            // --- Центральная область: холст для графиков ---
+
+        // --- Центральная область: холст для графиков ---
+        egui::CentralPanel::default().show(ui, |ui| {
             crate::ui::canvas::show_canvas_panel(self, &ctx, ui);
         });
     }
