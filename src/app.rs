@@ -104,6 +104,14 @@ pub struct PlotApp {
     pub status_time: Option<Instant>,
     pub status_duration: std::time::Duration,
     pub selected_graph: Option<usize>,
+    /// Путь к последней сохранённой/загруженной сессии.
+    pub last_session_path: Option<PathBuf>,
+    /// Флаг: нужно предложить сохранить сессию при выходе.
+    pub pending_save_on_exit: bool,
+    /// Флаг: показать окно помощи.
+    pub show_help_window: bool,
+    /// Флаг: показать окно "О программе".
+    pub show_about_window: bool,
     /// Последний размер canvas для отслеживания ресайза
     #[allow(dead_code)]
     pub _last_canvas_rect: Option<Rect>,
@@ -126,6 +134,10 @@ impl Default for PlotApp {
             status_time: None,
             status_duration: std::time::Duration::from_secs(3),
             selected_graph: Some(0),
+            last_session_path: None,
+            pending_save_on_exit: false,
+            show_help_window: false,
+            show_about_window: false,
             _last_canvas_rect: None,
         };
         app.graphs.push(GraphEntry::new(
@@ -264,6 +276,61 @@ impl PlotApp {
 
         intersections
     }
+
+    /// Предложить сохранить сессию при выходе.
+    /// Возвращает путь, если пользователь выбрал файл для сохранения.
+    pub fn prompt_save_on_exit(&mut self) -> Option<PathBuf> {
+        // Предлагаем сохранить только если сессия никогда не была явно сохранена
+        if self.session_path.is_some() {
+            return None;
+        }
+
+        let path = rfd::FileDialog::new()
+            .set_file_name("plot_session.json")
+            .add_filter("JSON", &["json"])
+            .save_file();
+
+        if let Some(ref p) = path {
+            let session = crate::session::SessionData::from_app(self);
+            match session.save_to_file(p) {
+                Ok(()) => {
+                    self.session_path = Some(p.clone());
+                    self.last_session_path = Some(p.clone());
+                    self.pending_save_on_exit = false;
+                    return Some(p.clone());
+                }
+                Err(e) => {
+                    self.status_msg = Some(StatusMessage::Error(format!("Ошибка сохранения: {e}")));
+                    self.status_time = Some(Instant::now());
+                }
+            }
+        }
+
+        self.pending_save_on_exit = false;
+        None
+    }
+
+    /// Загрузить последнюю сессию, если она существует.
+    pub fn try_load_last_session(&mut self) {
+        let path = self.last_session_path.clone();
+        if let Some(ref path) = path {
+            if path.exists() {
+                match crate::session::SessionData::load_from_file(path) {
+                    Ok(session_data) => {
+                        session_data.apply_to_app(self);
+                        self.session_path = Some(path.clone());
+                        self.status_msg =
+                            Some(StatusMessage::Info(format!("Автозагрузка: {}", path.display())));
+                        self.status_time = Some(Instant::now());
+                    }
+                    Err(e) => {
+                        self.status_msg = Some(StatusMessage::Error(format!("Ошибка автозагрузки: {e}")));
+                        self.status_time = Some(Instant::now());
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl eframe::App for PlotApp {
@@ -298,6 +365,8 @@ impl eframe::App for PlotApp {
                     Ok(session_data) => {
                         session_data.apply_to_app(self);
                         self.session_path = Some(p.clone());
+                        self.last_session_path = Some(p.clone());
+                        self.pending_save_on_exit = false;
                         self.status_msg =
                             Some(StatusMessage::Info(format!("Загружено: {}", p.display())));
                         self.status_time = Some(Instant::now());
@@ -356,5 +425,22 @@ impl eframe::App for PlotApp {
         egui::CentralPanel::default().show(ui, |ui| {
             crate::ui::canvas::show_canvas_panel(self, &ctx, ui);
         });
+
+        // --- Окна помощи и "О программе" ---
+        egui::Window::new("Помощь")
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .resizable(true)
+            .open(&mut self.show_help_window)
+            .show(&ctx, |ui| {
+                crate::ui::controls::render_help_content(ui);
+            });
+
+        egui::Window::new("О программе")
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .resizable(false)
+            .open(&mut self.show_about_window)
+            .show(&ctx, |ui| {
+                crate::ui::controls::render_about_content(ui);
+            });
     }
 }

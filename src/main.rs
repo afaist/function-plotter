@@ -1,4 +1,5 @@
 mod app;
+mod config;
 mod evaluator;
 mod export;
 mod parser;
@@ -66,13 +67,34 @@ mod app_tests {
 }
 
 fn main() -> eframe::Result {
+    // Загружаем конфигурацию
+    let config = config::AppConfig::load();
+
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([1000.0, 700.0]),
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size((config.window_width as f32, config.window_height as f32))
+            .with_min_inner_size((600.0, 400.0)),
         ..Default::default()
     };
+
     eframe::run_native(
         "Function Plotter",
         options,
-        Box::new(|_cc| Ok(Box::new(app::PlotApp::default()))),
+        Box::new(|_cc| {
+            let mut app = app::PlotApp::default();
+
+            // Проверяем auto-load
+            let config = config::AppConfig::load();
+            if config.auto_load_last_session {
+                app.try_load_last_session();
+            }
+
+            // Устанавливаем флаг: если сессия не сохранена — нужно предложить при выходе
+            if app.session_path.is_none() {
+                app.pending_save_on_exit = true;
+            }
+
+            Ok(Box::new(app))
+        }),
     )
 }

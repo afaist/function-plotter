@@ -9,3 +9,7 @@ Cargo.lock
 *.zip
 /.gigacode_vsc
 *.json
+
+# Exceptions
+!README.md
+!assets/icon.png

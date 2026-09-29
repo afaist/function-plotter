@@ -5,6 +5,7 @@ use std::time::Instant;
 use egui::{Color32, Context, Ui};
 
 use crate::app::{GraphEntry, PlotApp, StatusMessage};
+use crate::config;
 use crate::export;
 use crate::export::{save_dialog, save_png};
 use crate::parser::ParsedFormula;
@@ -216,6 +217,18 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     // Статус-бар
     show_status_bar(app, ui);
 
+    // Кнопки помощи
+    ui.add_space(8.0);
+    ui.separator();
+    ui.horizontal(|ui| {
+        if ui.button("❓ Помощь").clicked() {
+            app.show_help_window = true;
+        }
+        if ui.button("ℹ️ О программе").clicked() {
+            app.show_about_window = true;
+        }
+    });
+
     if need_recompute {
         app.recompute_all();
     }
@@ -305,6 +318,75 @@ fn show_export_ui(app: &mut PlotApp, ctx: &Context, ui: &mut Ui, _need_recompute
     }
 }
 
+/// Содержимое окна помощи.
+pub fn render_help_content(ui: &mut Ui) {
+    ui.heading("Горячие клавиши");
+    ui.horizontal(|ui| {
+        ui.label("Ctrl+N");
+        ui.separator();
+        ui.label("Новый график");
+    });
+    ui.horizontal(|ui| {
+        ui.label("Ctrl+O");
+        ui.separator();
+        ui.label("Загрузить сессию");
+    });
+    ui.horizontal(|ui| {
+        ui.label("Ctrl+S");
+        ui.separator();
+        ui.label("Сохранить сессию");
+    });
+    ui.horizontal(|ui| {
+        ui.label("Delete");
+        ui.separator();
+        ui.label("Удалить выбранный график");
+    });
+    ui.horizontal(|ui| {
+        ui.label("R");
+        ui.separator();
+        ui.label("Сбросить масштаб");
+    });
+    ui.horizontal(|ui| {
+        ui.label("F5 / Ctrl+Enter");
+        ui.separator();
+        ui.label("Пересчитать графики");
+    });
+
+    ui.add_space(8.0);
+    ui.separator();
+    ui.add_space(4.0);
+
+    ui.heading("Примеры функций");
+    ui.label("sin(x)");
+    ui.label("cos(x)");
+    ui.label("tan(x)");
+    ui.label("x^2");
+    ui.label("sqrt(x)");
+    ui.label("exp(x)");
+    ui.label("log(x)");
+    ui.label("abs(x)");
+    ui.label("sin(x) / x");
+
+    ui.add_space(8.0);
+    ui.separator();
+    ui.add_space(4.0);
+
+    ui.heading("Специальные функции");
+    ui.label("deriv(sin(x)) — производная");
+    ui.label("integral(sin(x), 0, 3.14) — определённый интеграл");
+}
+
+/// Содержимое окна "О программе".
+pub fn render_about_content(ui: &mut Ui) {
+    ui.heading("Function Plotter");
+    ui.label(format!("Версия: {}", env!("CARGO_PKG_VERSION")));
+    ui.add_space(4.0);
+    ui.label("Интерактивная программа для построения графиков функций");
+    ui.label("с поддержкой производных, интегралов и экспорта.");
+    ui.add_space(4.0);
+    ui.label("Rust + eframe/egui");
+}
+
 /// Панель сессий (сохранить/загрузить).
 fn show_session_ui(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui) {
     if ui.button("Сохранить сессию").clicked() {
@@ -318,6 +400,8 @@ fn show_session_ui(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui) {
             match session.save_to_file(p) {
                 Ok(()) => {
                     app.session_path = Some(p.clone());
+                    app.last_session_path = Some(p.clone());
+                    app.pending_save_on_exit = false;
                     app.status_msg =
                         Some(StatusMessage::Info(format!("Сохранено: {}", p.display())));
                     app.status_time = Some(Instant::now());
@@ -340,6 +424,8 @@ fn show_session_ui(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui) {
                 Ok(session_data) => {
                     session_data.apply_to_app(app);
                     app.session_path = Some(p.clone());
+                    app.last_session_path = Some(p.clone());
+                    app.pending_save_on_exit = false;
                     app.status_msg =
                         Some(StatusMessage::Info(format!("Загружено: {}", p.display())));
                     app.status_time = Some(Instant::now());
@@ -358,6 +444,8 @@ fn show_session_ui(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui) {
             let session = crate::session::SessionData::from_app(app);
             match session.save_to_file(p) {
                 Ok(()) => {
+                    app.last_session_path = app.session_path.clone();
+                    app.pending_save_on_exit = false;
                     app.status_msg = Some(StatusMessage::Info("Сессия сохранена".to_string()));
                     app.status_time = Some(Instant::now());
                 }
@@ -366,6 +454,21 @@ fn show_session_ui(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui) {
                     app.status_time = Some(Instant::now());
                 }
             }
+        }
+    }
+
+    // Настройки сессии
+    ui.add_space(4.0);
+    ui.separator();
+
+    let config = config::AppConfig::load();
+    let mut auto_load = config.auto_load_last_session;
+    if ui.checkbox(&mut auto_load, "Автозагрузка последней сессии").changed() {
+        let mut new_config = config;
+        new_config.auto_load_last_session = auto_load;
+        if let Err(e) = new_config.save() {
+            app.status_msg = Some(StatusMessage::Error(format!("Ошибка сохранения настроек: {e}")));
+            app.status_time = Some(Instant::now());
         }
     }
 }
