@@ -76,6 +76,44 @@ impl PlotData {
                     points.push((x, y));
                 }
             }
+            FormulaType::Polar => {
+                // Полярные координаты: r = f(theta), x = r*cos(theta), y = r*sin(theta)
+                if let Some((theta_min, theta_max)) = formula.polar_bounds() {
+                    let inner = formula.inner().unwrap();
+                    let n = n.max(2);
+                    let dtheta = (theta_max - theta_min) / (n as f64 - 1.0);
+
+                    let mut x_min = f64::INFINITY;
+                    let mut x_max = f64::NEG_INFINITY;
+
+                    for i in 0..n {
+                        let theta = theta_min + dtheta * i as f64;
+                        let r = inner.eval(theta);
+
+                        if r.is_finite() {
+                            let x = r * theta.cos();
+                            let y = r * theta.sin();
+
+                            if x.is_finite() && y.is_finite() {
+                                x_min = x_min.min(x);
+                                x_max = x_max.max(x);
+                                y_min = y_min.min(y);
+                                y_max = y_max.max(y);
+                                points.push((x, y));
+                            }
+                        } else {
+                            points.push((f64::NAN, f64::NAN));
+                        }
+                    }
+
+                    // Обновляем x_min/x_max для viewport
+                    if x_min.is_finite() {
+                        // Для полярных координат x_min/x_max передаются как theta_min/theta_max,
+                        // но нам нужно обновить их в caller'е. Здесь мы просто используем
+                        // стандартный подход.
+                    }
+                }
+            }
         }
 
         if !y_min.is_finite() || !y_max.is_finite() {

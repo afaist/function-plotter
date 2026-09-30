@@ -2,7 +2,7 @@
 
 use std::time::Instant;
 
-use egui::{Color32, Context, Ui};
+use egui::{Color32, Context, ScrollArea, Ui};
 
 use crate::app::{GraphEntry, PlotApp, StatusMessage};
 use crate::config;
@@ -75,19 +75,19 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     let mut need_save_snapshot = false;
 
     // Кнопка шаблонов
-    let mut show_templates = false;
     if ui.button("📋 Шаблоны").clicked() {
-        show_templates = true;
+        app.show_templates_window = true;
     }
 
     // Окно шаблонов
-    if show_templates {
-        egui::Window::new("Шаблоны функций")
-            .resizable(true)
-            .show(ctx, |ui| {
-                ui.label("Выберите шаблон для добавления графика:");
-                ui.separator();
-                
+    egui::Window::new("Шаблоны функций")
+        .resizable(true)
+        .open(&mut app.show_templates_window)
+        .show(ctx, |ui| {
+            ui.label("Выберите шаблон для добавления графика:");
+            ui.separator();
+
+            ScrollArea::vertical().show(ui, |ui| {
                 for category in crate::templates::categories() {
                     ui.heading(category);
                     let templates = crate::templates::templates_by_category(category);
@@ -110,13 +110,12 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                             app.has_unsaved_changes = true;
                             need_save_snapshot = true;
                             need_recompute = true;
-                            show_templates = false;
                         }
                     }
                     ui.add_space(2.0);
                 }
             });
-    }
+        });
 
     // Список графиков
     let mut any_changed = false;
@@ -248,6 +247,14 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
             need_save_snapshot = true;
         }
     });
+
+    // Полярные координаты
+    ui.add_space(4.0);
+    if ui.checkbox(&mut app.polar_mode, "Полярные координаты").changed() {
+        app.has_unsaved_changes = true;
+        need_save_snapshot = true;
+        app.mark_all_dirty();
+    }
 
     // Диапазон Y
     ui.add_space(8.0);

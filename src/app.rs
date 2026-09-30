@@ -100,6 +100,7 @@ pub struct PlotApp {
     pub auto_y: bool,
     pub adaptive: bool,          // Использовать адаптивный алгоритм
     pub adaptive_tolerance: f64, // Порог для адаптивного алгоритма
+    pub polar_mode: bool,        // Режим полярных координат
     pub drag_start: Option<Pos2>,
     pub session_path: Option<PathBuf>,
     pub status_msg: Option<StatusMessage>,
@@ -114,6 +115,8 @@ pub struct PlotApp {
     pub show_help_window: bool,
     /// Флаг: показать окно "О программе".
     pub show_about_window: bool,
+    /// Флаг: показать окно шаблонов.
+    pub show_templates_window: bool,
     /// Флаг: показать диалог сохранения при выходе.
     pub show_save_dialog: bool,
     /// Флаг: готово к закрытию (пользователь нажал "Да").
@@ -145,6 +148,7 @@ impl Default for PlotApp {
             auto_y: true,
             adaptive: false,
             adaptive_tolerance: 0.01,
+            polar_mode: false,
             drag_start: None,
             session_path: None,
             status_msg: None,
@@ -155,6 +159,7 @@ impl Default for PlotApp {
             pending_save_on_exit: false,
             show_help_window: false,
             show_about_window: false,
+            show_templates_window: false,
             show_save_dialog: false,
             is_ready_to_close: false,
             has_unsaved_changes: false,
@@ -427,9 +432,11 @@ impl eframe::App for PlotApp {
             }
         }
 
-        // 2. Отрисовываем диалог подтверждения
+        // 2. Отрисовываем диалог подтверждения поверх основного интерфейса
         if self.show_save_dialog {
             let mut save_file = false;
+            let mut close_without_save = false;
+            
             egui::Window::new("Сохранить сессию?")
                 .resizable(false)
                 .collapsible(false)
@@ -440,12 +447,10 @@ impl eframe::App for PlotApp {
                             save_file = true;
                         }
                         if ui.button("Не сохранять").clicked() {
-                            self.pending_save_on_exit = false;
-                            self.show_save_dialog = false;
+                            close_without_save = true;
                         }
                         if ui.button("Отмена").clicked() {
-                            self.pending_save_on_exit = false;
-                            self.show_save_dialog = false;
+                            close_without_save = true;
                         }
                     });
                 });
@@ -474,6 +479,13 @@ impl eframe::App for PlotApp {
                 self.pending_save_on_exit = false;
                 // Готовимся к закрытию
                 self.is_ready_to_close = true;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
+
+            if close_without_save {
+                self.show_save_dialog = false;
+                self.pending_save_on_exit = false;
+                // Закрываем приложение без сохранения
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
 
@@ -627,7 +639,9 @@ mod tests {
 
     fn create_temp_config(width: f64, height: f64, suffix: &str) -> PathBuf {
         let temp_dir = std::env::temp_dir().join("function-plotter-test");
-        fs::create_dir_all(&temp_dir).unwrap();
+        if let Err(e) = fs::create_dir_all(&temp_dir) {
+            eprintln!("Warning: Could not create temp dir: {e}");
+        }
         let config_path = temp_dir.join(format!("config{}.json", suffix));
         
         let config = AppConfig {
@@ -637,7 +651,9 @@ mod tests {
             auto_load_last_session: false,
             last_session_path: None,
         };
-        config.save_to(&config_path).unwrap();
+        if let Err(e) = config.save_to(&config_path) {
+            eprintln!("Warning: Could not save config: {e}");
+        }
         config_path
     }
 

@@ -66,7 +66,11 @@ pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 0.0, Color32::from_rgb(30, 30, 35));
 
-    renderer::draw_axes(&painter, rect, &app.viewport);
+    if app.polar_mode {
+        renderer::draw_polar_grid(&painter, rect, &app.viewport);
+    } else {
+        renderer::draw_axes(&painter, rect, &app.viewport);
+    }
 
     for g in &app.graphs {
         if let Some(ref data) = g.data {

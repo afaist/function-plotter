@@ -1,11 +1,12 @@
 use mathexpr::builder::{Executable, Expression};
 
-/// Тип формулы: обычная, производная или интеграл.
+/// Тип формулы: обычная, производная, интеграл или полярная.
 #[derive(Clone, Debug, PartialEq)]
 pub enum FormulaType {
     Regular,
     Derivative,
     Integral,
+    Polar,
 }
 
 /// Разобранная формула, готовая к вычислению.
@@ -22,6 +23,11 @@ pub enum ParsedFormula {
         lower: f64,
         upper: f64,
     },
+    Polar {
+        inner: Box<ParsedFormula>,
+        theta_min: f64,
+        theta_max: f64,
+    },
 }
 
 impl ParsedFormula {
@@ -35,6 +41,7 @@ impl ParsedFormula {
                 lower: _,
                 upper: _,
             } => f64::NAN,
+            Self::Polar { inner, .. } => inner.eval(x),
         }
     }
 
@@ -44,14 +51,16 @@ impl ParsedFormula {
             Self::Regular { .. } => FormulaType::Regular,
             Self::Derivative { .. } => FormulaType::Derivative,
             Self::Integral { .. } => FormulaType::Integral,
+            Self::Polar { .. } => FormulaType::Polar,
         }
     }
 
-    /// Получить внутреннюю формулу (для производной/интеграла).
+    /// Получить внутреннюю формулу (для производной/интеграла/полярной).
     pub fn inner(&self) -> Option<&ParsedFormula> {
         match self {
             Self::Derivative { inner } => Some(inner),
             Self::Integral { inner, .. } => Some(inner),
+            Self::Polar { inner, .. } => Some(inner),
             Self::Regular { .. } => None,
         }
     }
@@ -60,6 +69,18 @@ impl ParsedFormula {
     pub fn integral_bounds(&self) -> Option<(f64, f64)> {
         match self {
             Self::Integral { lower, upper, .. } => Some((*lower, *upper)),
+            _ => None,
+        }
+    }
+
+    /// Получить границы theta (если это полярная).
+    pub fn polar_bounds(&self) -> Option<(f64, f64)> {
+        match self {
+            Self::Polar {
+                theta_min,
+                theta_max,
+                ..
+            } => Some((*theta_min, *theta_max)),
             _ => None,
         }
     }
@@ -178,6 +199,54 @@ pub fn parse(input: &str) -> Result<ParsedFormula, String> {
             });
         }
         return Err("Неверный синтаксис integral(...). Ожидается integral(выражение, a, b)".into());
+    }
+
+    // Обработка polar(..., theta_min, theta_max)
+    if let Some(inner_start) = trimmed.strip_prefix("polar(") {
+        if let Some(idx) = find_matching_paren(inner_start, 0) {
+            let args_str = &inner_start[..idx];
+            let args = split_args(args_str);
+
+            if args.len() < 3 {
+                return Err(
+                    "Неверный синтаксис polar(...). Ожидается polar(выражение, theta_min, theta_max)".into(),
+                );
+            }
+
+            let inner_expr = &args[0];
+            let theta_min_str = &args[1];
+            let theta_max_str = &args[2];
+
+            let inner = parse(inner_expr).map_err(|e| format!("polar: {e}"))?;
+
+            // Парсим границы theta как выражения (должны быть константами)
+            let theta_min_expr =
+                Expression::parse(theta_min_str).map_err(|e| format!("Граница theta_min: {e}"))?;
+            let theta_min = theta_min_expr
+                .compile_no_vars()
+                .ok()
+                .and_then(|e| e.eval(&[]).ok())
+                .unwrap_or(f64::NAN);
+
+            let theta_max_expr =
+                Expression::parse(theta_max_str).map_err(|e| format!("Граница theta_max: {e}"))?;
+            let theta_max = theta_max_expr
+                .compile_no_vars()
+                .ok()
+                .and_then(|e| e.eval(&[]).ok())
+                .unwrap_or(f64::NAN);
+
+            if !theta_min.is_finite() || !theta_max.is_finite() {
+                return Err("Границы theta должны быть конечными числами".into());
+            }
+
+            return Ok(ParsedFormula::Polar {
+                inner: Box::new(inner),
+                theta_min,
+                theta_max,
+            });
+        }
+        return Err("Неверный синтаксис polar(...). Ожидается polar(выражение, theta_min, theta_max)".into());
     }
 
     // Обычная формула
@@ -465,5 +534,47 @@ mod tests {
     fn formula_type_integral() {
         let f = parse("integral(sin(x), 0, 1)").unwrap();
         assert_eq!(f.formula_type(), FormulaType::Integral);
+    }
+
+    // --- Полярные координаты ---
+
+    #[test]
+    fn parse_polar_simple() {
+        let result = parse("polar(1, 0, 2*pi)");
+        assert!(result.is_ok());
+        let formula = result.unwrap();
+        assert_eq!(formula.formula_type(), FormulaType::Polar);
+        let bounds = formula.polar_bounds().unwrap();
+        assert!((bounds.0 - 0.0).abs() < 1e-10);
+        assert!((bounds.1 - 2.0 * std::f64::consts::PI).abs() < 1e-10);
+    }
+
+    #[test]
+    fn parse_polar_trig() {
+        let result = parse("polar(sin(2*x), 0, pi)");
+        assert!(result.is_ok());
+        let formula = result.unwrap();
+        assert_eq!(formula.formula_type(), FormulaType::Polar);
+        let bounds = formula.polar_bounds().unwrap();
+        assert!((bounds.0 - 0.0).abs() < 1e-10);
+        assert!((bounds.1 - std::f64::consts::PI).abs() < 1e-10);
+    }
+
+    #[test]
+    fn parse_polar_too_few_args() {
+        let result = parse("polar(sin(x), 0)");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_polar_invalid_bounds() {
+        let result = parse("polar(x, a, b)");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn formula_type_polar() {
+        let f = parse("polar(cos(x), 0, 2*pi)").unwrap();
+        assert_eq!(f.formula_type(), FormulaType::Polar);
     }
 }

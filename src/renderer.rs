@@ -190,6 +190,21 @@ pub fn draw_curve_with_type(
             // Для интегралов — тонкая сплошная линия
             Stroke::new(1.0_f32, style.color)
         }
+        FormulaType::Polar => {
+            // Для полярных — зелёная пунктирная линия
+            let sp: Vec<Pos2> = points
+                .iter()
+                .filter_map(|&(x, y)| {
+                    if y.is_finite() {
+                        Some(viewport.math_to_screen(x, y, rect))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            draw_dashed_line(painter, &sp, stroke, (6.0, 3.0));
+            return;
+        }
         FormulaType::Regular => stroke,
     };
 
@@ -391,5 +406,72 @@ pub fn format_coord(val: f64, step: f64) -> String {
         format!("{val:.2}")
     } else {
         format!("{val:.1}")
+    }
+}
+
+/// Отрисовка полярной сетки (круги + лучи).
+pub fn draw_polar_grid(painter: &Painter, rect: Rect, viewport: &Viewport) {
+    let grid_color = Color32::from_gray(60);
+    let axis_color = Color32::from_gray(120);
+    let text_color = Color32::from_gray(180);
+
+    // Определяем максимальный радиус в математических координатах
+    let max_radius = (viewport.x_max.abs().max(viewport.x_min.abs())
+        .max(viewport.y_max.abs().max(viewport.y_min.abs())))
+        .max(1.0);
+
+    // Рисуем концентрические круги
+    let num_circles = 6;
+    let circle_stroke = Stroke::new(0.5_f32, grid_color);
+    for i in 1..=num_circles {
+        let radius = max_radius * i as f64 / num_circles as f64;
+        let center = viewport.math_to_screen(0.0, 0.0, rect);
+        let screen_radius = (radius / (viewport.x_max - viewport.x_min) * rect.width() as f64) as f32;
+
+        if screen_radius > 0.0 {
+            painter.circle_stroke(center, screen_radius, circle_stroke);
+        }
+    }
+
+    // Рисуем лучи (12 лучей с шагом 30 градусов)
+    let num_rays = 12;
+    for i in 0..num_rays {
+        let angle = 2.0 * std::f64::consts::PI * i as f64 / num_rays as f64;
+        let x1 = max_radius * angle.cos();
+        let y1 = max_radius * angle.sin();
+        let x2 = -max_radius * angle.cos();
+        let y2 = -max_radius * angle.sin();
+
+        let p1 = viewport.math_to_screen(x1, y1, rect);
+        let p2 = viewport.math_to_screen(x2, y2, rect);
+        painter.line_segment([p1, p2], circle_stroke);
+    }
+
+    // Рисуем оси X и Y
+    let axis_stroke = Stroke::new(1.5_f32, axis_color);
+    if viewport.y_min <= 0.0 && viewport.y_max >= 0.0 {
+        let p1 = viewport.math_to_screen(viewport.x_min, 0.0, rect);
+        let p2 = viewport.math_to_screen(viewport.x_max, 0.0, rect);
+        painter.line_segment([p1, p2], axis_stroke);
+    }
+    if viewport.x_min <= 0.0 && viewport.x_max >= 0.0 {
+        let p1 = viewport.math_to_screen(0.0, viewport.y_min, rect);
+        let p2 = viewport.math_to_screen(0.0, viewport.y_max, rect);
+        painter.line_segment([p1, p2], axis_stroke);
+    }
+
+    // Подписи радиусов
+    let font = egui::FontId::proportional(10.0);
+    for i in 1..=num_circles {
+        let radius = max_radius * i as f64 / num_circles as f64;
+        let pos = viewport.math_to_screen(radius, 0.0, rect);
+        let label = format!("{:.1}", radius);
+        painter.text(
+            pos + Vec2::new(4.0, -4.0),
+            egui::Align2::LEFT_TOP,
+            label,
+            font.clone(),
+            text_color,
+        );
     }
 }
