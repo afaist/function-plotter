@@ -303,6 +303,12 @@ impl PlotApp {
         let _ = new_config.save();
     }
 
+    /// Восстановить размер окна из config.
+    pub fn restore_window_size(&mut self) {
+        let config = config::AppConfig::load();
+        self.window_size = [config.window_width as f32, config.window_height as f32];
+    }
+
     /// Предложить сохранить сессию при выходе.
     /// Возвращает путь, если пользователь выбрал файл для сохранения.
     pub fn prompt_save_on_exit(&mut self) -> Option<PathBuf> {
@@ -542,5 +548,78 @@ impl eframe::App for PlotApp {
             .show(&ctx, |ui| {
                 crate::ui::controls::render_about_content(ui);
             });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::path::PathBuf;
+
+    use super::*;
+    use crate::config::AppConfig;
+
+    fn create_temp_config(width: f64, height: f64, suffix: &str) -> PathBuf {
+        let temp_dir = std::env::temp_dir().join("function-plotter-test");
+        fs::create_dir_all(&temp_dir).unwrap();
+        let config_path = temp_dir.join(format!("config{}.json", suffix));
+        
+        let config = AppConfig {
+            version: 2,
+            window_width: width,
+            window_height: height,
+            auto_load_last_session: false,
+            last_session_path: None,
+        };
+        config.save_to(&config_path).unwrap();
+        config_path
+    }
+
+    #[test]
+    fn test_window_size_default() {
+        let app = PlotApp::default();
+        
+        // По умолчанию размер должен быть 1000x700
+        assert_eq!(app.window_size[0], 1000.0);
+        assert_eq!(app.window_size[1], 700.0);
+    }
+
+    #[test]
+    fn test_window_size_from_config() {
+        let config_path = create_temp_config(1200.0, 800.0, "_from_config");
+        
+        // Загружаем config и проверяем, что значения правильные
+        let config = AppConfig::load_from(&config_path);
+        assert_eq!(config.window_width, 1200.0);
+        assert_eq!(config.window_height, 800.0);
+        
+        // Чистим
+        let temp_dir = config_path.parent().unwrap().to_path_buf();
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_save_and_restore_window_size() {
+        let config_path = create_temp_config(1280.0, 720.0, "_save_restore");
+        
+        // Создаём config с нужным размером
+        let config = AppConfig::load_from(&config_path);
+        let new_config = AppConfig {
+            window_width: 1280.0,
+            window_height: 720.0,
+            ..config
+        };
+        new_config.save_to(&config_path).unwrap();
+        
+        // Восстанавливаем размер из config
+        let restored_config = AppConfig::load_from(&config_path);
+        let window_size = [restored_config.window_width as f32, restored_config.window_height as f32];
+        
+        assert_eq!(window_size[0], 1280.0);
+        assert_eq!(window_size[1], 720.0);
+        
+        // Чистим
+        let temp_dir = config_path.parent().unwrap().to_path_buf();
+        let _ = fs::remove_dir_all(&temp_dir);
     }
 }

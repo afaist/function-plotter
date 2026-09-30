@@ -91,6 +91,9 @@ fn main() -> eframe::Result {
                 app.last_session_path = Some(PathBuf::from(path_str));
             }
 
+            // Восстанавливаем размер окна из config
+            app.restore_window_size();
+
             // Проверяем auto-load
             if config.auto_load_last_session {
                 app.try_load_last_session();

@@ -89,4 +89,35 @@ impl AppConfig {
         let json = serde_json::to_string_pretty(self).map_err(|e| format!("Сериализация: {e}"))?;
         fs::write(&path, json).map_err(|e| format!("Запись файла: {e}"))
     }
+
+    /// Загрузить конфигурацию из указанного пути.
+    #[allow(dead_code)]
+    pub fn load_from(path: &PathBuf) -> Self {
+        if !path.exists() {
+            return Self::default();
+        }
+
+        match fs::read_to_string(path) {
+            Ok(content) => match serde_json::from_str::<Self>(&content) {
+                Ok(mut config) => {
+                    if config.version < CONFIG_VERSION {
+                        config.version = CONFIG_VERSION;
+                    }
+                    config
+                }
+                Err(_) => Self::default(),
+            },
+            Err(_) => Self::default(),
+        }
+    }
+
+    /// Сохранить конфигурацию в указанный путь.
+    #[allow(dead_code)]
+    pub fn save_to(&self, path: &PathBuf) -> Result<(), String> {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(|e| format!("Создание директории: {e}"))?;
+        }
+        let json = serde_json::to_string_pretty(self).map_err(|e| format!("Сериализация: {e}"))?;
+        fs::write(path, json).map_err(|e| format!("Запись файла: {e}"))
+    }
 }
