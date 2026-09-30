@@ -113,6 +113,14 @@ pub struct PlotApp {
     pub show_help_window: bool,
     /// Флаг: показать окно "О программе".
     pub show_about_window: bool,
+    /// Флаг: показать диалог сохранения при выходе.
+    pub show_save_dialog: bool,
+    /// Флаг: готово к закрытию (пользователь нажал "Да").
+    pub is_ready_to_close: bool,
+    /// Флаг: есть несохранённые изменения.
+    pub has_unsaved_changes: bool,
+    /// Флаг: отменить закрытие (ожидание действия пользователя).
+    pub cancel_close: bool,
     /// Последний размер canvas для отслеживания ресайза
     pub _last_canvas_rect: Option<Rect>,
     /// Размер окна для сохранения
@@ -140,6 +148,10 @@ impl Default for PlotApp {
             pending_save_on_exit: false,
             show_help_window: false,
             show_about_window: false,
+            show_save_dialog: false,
+            is_ready_to_close: false,
+            has_unsaved_changes: false,
+            cancel_close: false,
             _last_canvas_rect: None,
             window_size: [1000.0, 700.0],
         };
@@ -349,6 +361,74 @@ impl PlotApp {
 
 impl eframe::App for PlotApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        let ctx = ui.ctx().clone();
+        
+        // --- Запрос на сохранение сессии при выходе ---
+        // 1. Проверяем, нажал ли пользователь на крестик окна
+        if ctx.input(|i| i.viewport().close_requested()) {
+            // Показываем диалог только если есть несохранённые изменения
+            if !self.is_ready_to_close && self.has_unsaved_changes {
+                // Отменяем автоматическое закрытие приложения
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                // Показываем свое диалоговое окно подтверждения
+                self.show_save_dialog = true;
+            }
+        }
+
+        // 2. Отрисовываем диалог подтверждения
+        if self.show_save_dialog {
+            let mut save_file = false;
+            egui::Window::new("Сохранить сессию?")
+                .resizable(false)
+                .collapsible(false)
+                .show(&ctx, |ui| {
+                    ui.label("Вы хотите сохранить сессию перед выходом?");
+                    ui.horizontal(|ui| {
+                        if ui.button("Сохранить").clicked() {
+                            save_file = true;
+                        }
+                        if ui.button("Не сохранять").clicked() {
+                            self.pending_save_on_exit = false;
+                            self.show_save_dialog = false;
+                        }
+                        if ui.button("Отмена").clicked() {
+                            self.pending_save_on_exit = false;
+                            self.show_save_dialog = false;
+                        }
+                    });
+                });
+
+            if save_file {
+                // 3. Если пользователь нажал "Сохранить" — показываем диалог сохранения
+                let path = rfd::FileDialog::new()
+                    .set_file_name("plot_session.json")
+                    .add_filter("JSON", &["json"])
+                    .save_file();
+
+                if let Some(p) = path {
+                    let session = crate::session::SessionData::from_app(self);
+                    if session.save_to_file(&p).is_ok() {
+                        self.session_path = Some(p.clone());
+                        self.last_session_path = Some(p.clone());
+                        self.has_unsaved_changes = false;
+                        let mut config = config::AppConfig::load();
+                        config.last_session_path = Some(p.to_string_lossy().to_string());
+                        let _ = config.save();
+                        self.status_msg = Some(StatusMessage::Info("Сессия сохранена".to_string()));
+                        self.status_time = Some(Instant::now());
+                    }
+                }
+                self.show_save_dialog = false;
+                self.pending_save_on_exit = false;
+                // Готовимся к закрытию
+                self.is_ready_to_close = true;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
+
+            // Не показываем основной интерфейс
+            return;
+        }
+
         // --- Горячие клавиши ---
         let input = ui.input(|i| i.clone());
         let ctrl = input.modifiers.ctrl || input.modifiers.command;
@@ -366,6 +446,7 @@ impl eframe::App for PlotApp {
             self.graphs
                 .push(GraphEntry::new(&format!("f{}", idx + 1), color, "x"));
             self.selected_graph = Some(self.graphs.len() - 1);
+            self.has_unsaved_changes = true;
             self.recompute_all();
         }
 
@@ -381,6 +462,7 @@ impl eframe::App for PlotApp {
                         self.session_path = Some(p.clone());
                         self.last_session_path = Some(p.clone());
                         self.pending_save_on_exit = false;
+                        self.has_unsaved_changes = false;
                         // Сохраняем путь в config
                         let mut config = config::AppConfig::load();
                         config.last_session_path = Some(p.to_string_lossy().to_string());
@@ -408,6 +490,7 @@ impl eframe::App for PlotApp {
                     } else {
                         self.selected_graph = Some(idx);
                     }
+                    self.has_unsaved_changes = true;
                     self.recompute_all();
                 }
             }
@@ -429,41 +512,6 @@ impl eframe::App for PlotApp {
 
         // Автоматический пересчёт dirty графиков
         self.recompute_all();
-
-        // --- Запрос на сохранение сессии при выходе ---
-        let ctx = ui.ctx().clone();
-        if self.pending_save_on_exit {
-            if ctx.input(|i| i.viewport().close_requested()) {
-                let should_save = rfd::FileDialog::new()
-                    .set_file_name("plot_session.json")
-                    .add_filter("JSON", &["json"])
-                    .save_file()
-                    .map(|p| {
-                        let session = crate::session::SessionData::from_app(self);
-                        if let Err(e) = session.save_to_file(&p) {
-                            self.status_msg = Some(StatusMessage::Error(format!("Ошибка сохранения: {e}")));
-                            self.status_time = Some(Instant::now());
-                            return false;
-                        }
-                        self.session_path = Some(p.clone());
-                        self.last_session_path = Some(p.clone());
-                        // Сохраняем путь в config
-                        let mut config = config::AppConfig::load();
-                        config.last_session_path = Some(p.to_string_lossy().to_string());
-                        let _ = config.save();
-                        self.pending_save_on_exit = false;
-                        self.status_msg = Some(StatusMessage::Info("Сессия сохранена перед выходом".to_string()));
-                        self.status_time = Some(Instant::now());
-                        true
-                    })
-                    .unwrap_or(false);
-                if should_save {
-                    // Разрешаем закрытие
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                }
-                // Если not_save — просто игнорируем запрос на закрытие
-            }
-        }
 
         // --- Левая панель управления ---
         egui::Panel::left("controls")

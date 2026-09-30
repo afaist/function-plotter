@@ -11,6 +11,7 @@ use crate::export::{save_dialog, save_png};
 use crate::parser::ParsedFormula;
 
 /// Отрисовка одной записи графика в левой панели.
+/// Возвращает true, если были изменения.
 fn render_graph_entry(
     ui: &mut Ui,
     i: usize,
@@ -22,16 +23,21 @@ fn render_graph_entry(
     selected_graph: &mut Option<usize>,
     need_remove: &mut Option<usize>,
     need_recompute: &mut bool,
-) {
+) -> bool {
+    let mut changed = false;
+    
     ui.horizontal(|ui| {
         let (rect, resp) = ui.allocate_exact_size(egui::vec2(12.0, 12.0), egui::Sense::click());
         if resp.clicked() {
             *selected_graph = Some(i);
         }
         ui.painter().rect_filled(rect, 0.0, color);
-        ui.checkbox(visible, label.to_string());
+        if ui.checkbox(visible, label.to_string()).changed() {
+            changed = true;
+        }
         if ui.button("✕").clicked() {
             *need_remove = Some(i);
+            changed = true;
         }
     });
 
@@ -51,8 +57,11 @@ fn render_graph_entry(
 
     if resp.lost_focus() {
         *need_recompute = true;
+        changed = true;
     }
     ui.add_space(4.0);
+    
+    changed
 }
 
 /// Отрисовка левой панели управления.
@@ -79,7 +88,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                     ..Default::default()
                 };
                 frame.show(ui, |ui| {
-                    render_graph_entry(
+                    let changed = render_graph_entry(
                         ui,
                         i,
                         color,
@@ -91,9 +100,12 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                         &mut need_remove,
                         &mut need_recompute,
                     );
+                    if changed {
+                        app.has_unsaved_changes = true;
+                    }
                 });
             } else {
-                render_graph_entry(
+                let changed = render_graph_entry(
                     ui,
                     i,
                     color,
@@ -105,6 +117,9 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                     &mut need_remove,
                     &mut need_recompute,
                 );
+                if changed {
+                    app.has_unsaved_changes = true;
+                }
             }
         });
 
@@ -129,11 +144,13 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         let color = palette[idx % palette.len()];
         app.graphs
             .push(GraphEntry::new(&format!("f{}", idx + 1), color, "x"));
+        app.has_unsaved_changes = true;
         need_recompute = true;
     }
 
     if let Some(i) = need_remove {
         app.graphs.remove(i);
+        app.has_unsaved_changes = true;
         need_recompute = true;
     }
 
@@ -150,6 +167,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         ui.label("x min:");
         if ui.add(egui::DragValue::new(&mut x_min)).changed() {
             app.x_min = x_min as f64;
+            app.has_unsaved_changes = true;
             app.mark_all_dirty();
         }
     });
@@ -157,6 +175,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         ui.label("x max:");
         if ui.add(egui::DragValue::new(&mut x_max)).changed() {
             app.x_max = x_max as f64;
+            app.has_unsaved_changes = true;
             app.mark_all_dirty();
         }
     });
@@ -167,6 +186,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
             .changed()
         {
             app.n_points = n as usize;
+            app.has_unsaved_changes = true;
             app.mark_all_dirty();
         }
     });
@@ -175,11 +195,15 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     ui.add_space(8.0);
     ui.separator();
     ui.heading("Диапазон Y");
-    ui.checkbox(&mut app.auto_y, "Авто-масштаб Y");
+    if ui.checkbox(&mut app.auto_y, "Авто-масштаб Y").changed() {
+        app.has_unsaved_changes = true;
+    }
 
     // Адаптивный алгоритм
     ui.add_space(4.0);
-    ui.checkbox(&mut app.adaptive, "Адаптивная плотность");
+    if ui.checkbox(&mut app.adaptive, "Адаптивная плотность").changed() {
+        app.has_unsaved_changes = true;
+    }
     if app.adaptive {
         ui.horizontal(|ui| {
             ui.add(egui::Slider::new(&mut app.adaptive_tolerance, 0.0001..=1.0).text("точность"));
@@ -191,11 +215,15 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         let mut y_max = app.viewport.y_max as f32;
         ui.horizontal(|ui| {
             ui.label("y min:");
-            ui.add(egui::DragValue::new(&mut y_min));
+            if ui.add(egui::DragValue::new(&mut y_min)).changed() {
+                app.has_unsaved_changes = true;
+            }
         });
         ui.horizontal(|ui| {
             ui.label("y max:");
-            ui.add(egui::DragValue::new(&mut y_max));
+            if ui.add(egui::DragValue::new(&mut y_max)).changed() {
+                app.has_unsaved_changes = true;
+            }
         });
         app.viewport.y_min = y_min as f64;
         app.viewport.y_max = y_max as f64;
@@ -402,6 +430,7 @@ fn show_session_ui(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui) {
                     app.session_path = Some(p.clone());
                     app.last_session_path = Some(p.clone());
                     app.pending_save_on_exit = false;
+                    app.has_unsaved_changes = false;
                     // Сохраняем путь в config
                     let mut config = config::AppConfig::load();
                     config.last_session_path = Some(p.to_string_lossy().to_string());
@@ -430,6 +459,7 @@ fn show_session_ui(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui) {
                     app.session_path = Some(p.clone());
                     app.last_session_path = Some(p.clone());
                     app.pending_save_on_exit = false;
+                    app.has_unsaved_changes = false;
                     // Сохраняем путь в config
                     let mut config = config::AppConfig::load();
                     config.last_session_path = Some(p.to_string_lossy().to_string());
@@ -454,6 +484,7 @@ fn show_session_ui(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui) {
                 Ok(()) => {
                     app.last_session_path = app.session_path.clone();
                     app.pending_save_on_exit = false;
+                    app.has_unsaved_changes = false;
                     // Сохраняем путь в config
                     let mut config = config::AppConfig::load();
                     config.last_session_path = Some(p.to_string_lossy().to_string());
