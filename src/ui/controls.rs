@@ -24,6 +24,7 @@ fn render_graph_entry(
     selected_graph: &mut Option<usize>,
     need_remove: &mut Option<usize>,
     need_recompute: &mut bool,
+    formula_type_info: Option<(Color32, String, String)>,
 ) -> bool {
     let mut changed = false;
     
@@ -41,6 +42,16 @@ fn render_graph_entry(
             changed = true;
         }
     });
+
+    // Индикатор типа формулы
+    if let Some((type_color, _icon, type_label)) = &formula_type_info {
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(type_label)
+                .color(*type_color)
+                .monospace()
+                .size(11.0));
+        });
+    }
 
     let text_edit = egui::TextEdit::singleline(formula).desired_width(f32::INFINITY);
     let text_output = text_edit.show(ui);
@@ -119,6 +130,10 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
 
     // Список графиков
     let mut any_changed = false;
+    // Предварительно вычисляем типы формул для всех графиков (чтобы избежать borrow conflicts)
+    let formula_types: Vec<Option<(Color32, String, String)>> = app.graphs.iter().map(|g| {
+        g.formula_type_info().map(|(c, _icon, l)| (c, l.to_string(), l.to_string()))
+    }).collect();
     for i in 0..app.graphs.len() {
         let color = app.graphs[i].style.color;
         let label = app.graphs[i].style.label.clone();
@@ -146,6 +161,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                         &mut app.selected_graph,
                         &mut need_remove,
                         &mut need_recompute,
+                        formula_types[i].clone(),
                     );
                 });
             } else {
@@ -160,6 +176,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                     &mut app.selected_graph,
                     &mut need_remove,
                     &mut need_recompute,
+                    formula_types[i].clone(),
                 );
             }
         });
@@ -353,6 +370,10 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         }
         if ui.button("ℹ️ О программе").clicked() {
             app.show_about_window = true;
+        }
+        if ui.button("📊 Таблица").clicked() {
+            app.show_values_table = true;
+            app.values_table_graph_index = app.selected_graph;
         }
     });
 

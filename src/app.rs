@@ -88,6 +88,19 @@ impl GraphEntry {
     pub fn mark_dirty(&mut self) {
         self.dirty = true;
     }
+
+    /// Получить информацию о типе формулы для отображения в UI.
+    pub fn formula_type_info(&self) -> Option<(egui::Color32, &str, &str)> {
+        let parsed = self.parsed.as_ref()?;
+        let (color, icon, label) = match parsed.formula_type() {
+            parser::FormulaType::Regular => (Color32::from_rgb(150, 150, 150), "●", "Обычная"),
+            parser::FormulaType::Derivative => (Color32::from_rgb(255, 170, 50), "∂", "Производная"),
+            parser::FormulaType::Integral => (Color32::from_rgb(100, 200, 255), "∫", "Интеграл"),
+            parser::FormulaType::Polar => (Color32::from_rgb(100, 255, 100), "◎", "Полярная"),
+            parser::FormulaType::Parametric => (Color32::from_rgb(255, 130, 200), "⟳", "Параметрическая"),
+        };
+        Some((color, icon, label))
+    }
 }
 
 /// Основное состояние приложения.
@@ -117,6 +130,12 @@ pub struct PlotApp {
     pub show_about_window: bool,
     /// Флаг: показать окно шаблонов.
     pub show_templates_window: bool,
+    /// Флаг: показать таблицу значений.
+    pub show_values_table: bool,
+    /// Индекс графика для отображения таблицы.
+    pub values_table_graph_index: Option<usize>,
+    /// Количество шагов для таблицы значений.
+    pub values_table_steps: usize,
     /// Флаг: показать диалог сохранения при выходе.
     pub show_save_dialog: bool,
     /// Флаг: готово к закрытию (пользователь нажал "Да").
@@ -160,6 +179,9 @@ impl Default for PlotApp {
             show_help_window: false,
             show_about_window: false,
             show_templates_window: false,
+            show_values_table: false,
+            values_table_graph_index: None,
+            values_table_steps: 10,
             show_save_dialog: false,
             is_ready_to_close: false,
             has_unsaved_changes: false,
@@ -414,6 +436,102 @@ impl PlotApp {
             }
         }
     }
+
+    /// Сгенерировать таблицу значений для указанного графика.
+    pub fn generate_values_table(&self, graph_index: usize, steps: usize) -> Option<Vec<(f64, f64)>> {
+        let graph = self.graphs.get(graph_index)?;
+        let data = graph.data.as_ref()?;
+        
+        let n = steps.max(2).min(1000);
+        let x_range = self.viewport.x_max - self.viewport.x_min;
+        let x_step = x_range / (n - 1) as f64;
+        let x_start = self.viewport.x_min;
+        
+        let mut table = Vec::with_capacity(n);
+        for i in 0..n {
+            let x = x_start + i as f64 * x_step;
+            let y = data.points.get(i).map(|p| p.1).unwrap_or(f64::NAN);
+            table.push((x, y));
+        }
+        
+        Some(table)
+    }
+
+    /// Отрисовка окна таблицы значений.
+    #[allow(dead_code)]
+    fn render_values_table_ui(&mut self, ui: &mut egui::Ui) {
+        // Эта функция оставлена для обратной совместимости
+        let _ = ui;
+    }
+}
+
+/// Данные для таблицы значений.
+#[derive(Clone, Debug)]
+struct ValuesTableData {
+    graph_label: String,
+    formula: String,
+    points: Vec<(f64, f64)>,
+}
+
+/// Отрисовка окна таблицы значений (standalone функция).
+fn render_values_table_ui(
+    ui: &mut egui::Ui,
+    table_steps: &mut usize,
+    x_min: f64,
+    x_max: f64,
+    table_data: Option<&ValuesTableData>,
+    graph_label: &Option<String>,
+) {
+    ui.heading("Таблица значений");
+    ui.add_space(8.0);
+
+    if let Some(data) = table_data {
+        // Количество шагов
+        let mut steps = *table_steps;
+        ui.horizontal(|ui| {
+            ui.label("Шагов:");
+            if ui.add(egui::Slider::new(&mut steps, 5..=100).text("количество")).changed() {
+                *table_steps = steps;
+            }
+        });
+
+        // Таблица
+        let n = steps.max(2).min(1000);
+        let x_range = x_max - x_min;
+        let x_step = x_range / (n - 1) as f64;
+
+        ui.add_space(8.0);
+        ui.label(format!("График: {}  |  Формула: {}", data.graph_label, data.formula));
+        ui.separator();
+
+        // Используем Grid для таблицы
+        egui::Grid::new("values_grid")
+            .striped(true)
+            .spacing([40.0, 8.0])
+            .show(ui, |ui| {
+                ui.strong("X");
+                ui.strong("Y");
+                ui.end_row();
+
+                for i in 0..n {
+                    let x = x_min + i as f64 * x_step;
+                    let y = data.points.get(i).map(|p| p.1).unwrap_or(f64::NAN);
+                    
+                    ui.label(format!("{:.4}", x));
+                    if y.is_nan() {
+                        ui.label("—");
+                    } else {
+                        ui.label(format!("{:.4}", y));
+                    }
+                    ui.end_row();
+                }
+            });
+    } else {
+        ui.label("Выберите график для отображения таблицы");
+        if let Some(ref label) = graph_label {
+            ui.label(format!("Выбран: {}", label));
+        }
+    }
 }
 
 impl eframe::App for PlotApp {
@@ -626,6 +744,39 @@ impl eframe::App for PlotApp {
             .show(&ctx, |ui| {
                 crate::ui::controls::render_about_content(ui);
             });
+
+        // Окно таблицы значений
+        egui::Window::new("Таблица значений")
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .resizable(true)
+            .open(&mut self.show_values_table)
+            .show(&ctx, |ui| {
+                // Извлекаем данные для таблицы, чтобы избежать borrow conflicts
+                let table_data = self.values_table_graph_index.and_then(|idx| {
+                    if idx < self.graphs.len() {
+                        let graph = &self.graphs[idx];
+                        graph.data.as_ref().map(|data| ValuesTableData {
+                            graph_label: graph.style.label.clone(),
+                            formula: graph.formula_text.clone(),
+                            points: data.points.clone(),
+                        })
+                    } else {
+                        None
+                    }
+                });
+
+                let x_min = self.viewport.x_min;
+                let x_max = self.viewport.x_max;
+                let graph_label = self.values_table_graph_index.and_then(|idx| {
+                    if idx < self.graphs.len() {
+                        Some(self.graphs[idx].style.label.clone())
+                    } else {
+                        None
+                    }
+                });
+
+                render_values_table_ui(ui, &mut self.values_table_steps, x_min, x_max, table_data.as_ref(), &graph_label);
+            });
     }
 }
 
@@ -821,5 +972,127 @@ mod tests {
         // Undo без снимков — ничего не происходит
         assert!(!app.undo());
         assert_eq!(app.graphs.len(), 2); // начальное состояние
+    }
+
+    // --- Тесты formula_type_info ---
+
+    #[test]
+    fn test_formula_type_regular() {
+        let entry = GraphEntry::new("f1", Color32::RED, "x^2");
+        let info = entry.formula_type_info();
+        assert!(info.is_some());
+        let (color, _icon, label) = info.unwrap();
+        assert_eq!(label, "Обычная");
+        assert_eq!(color, Color32::from_rgb(150, 150, 150));
+    }
+
+    #[test]
+    fn test_formula_type_derivative() {
+        let entry = GraphEntry::new("f1", Color32::RED, "deriv(sin(x))");
+        let info = entry.formula_type_info();
+        assert!(info.is_some());
+        let (_color, _icon, label) = info.unwrap();
+        assert_eq!(label, "Производная");
+    }
+
+    #[test]
+    fn test_formula_type_integral() {
+        let entry = GraphEntry::new("f1", Color32::RED, "integral(sin(x), 0, pi)");
+        let info = entry.formula_type_info();
+        assert!(info.is_some());
+        let (_color, _icon, label) = info.unwrap();
+        assert_eq!(label, "Интеграл");
+    }
+
+    #[test]
+    fn test_formula_type_polar() {
+        let entry = GraphEntry::new("f1", Color32::RED, "polar(cos(x), 0, 2*pi)");
+        let info = entry.formula_type_info();
+        assert!(info.is_some());
+        let (_color, _icon, label) = info.unwrap();
+        assert_eq!(label, "Полярная");
+    }
+
+    #[test]
+    fn test_formula_type_parametric() {
+        let entry = GraphEntry::new("f1", Color32::RED, "parametric(cos(t), sin(t), 0, 2*pi)");
+        let info = entry.formula_type_info();
+        assert!(info.is_some());
+        let (_color, _icon, label) = info.unwrap();
+        assert_eq!(label, "Параметрическая");
+    }
+
+    #[test]
+    fn test_formula_type_parse_error() {
+        let entry = GraphEntry::new("f1", Color32::RED, "invalid_syntax_here");
+        // При ошибке парсинга parsed = None, поэтому formula_type_info = None
+        assert!(entry.formula_type_info().is_none());
+    }
+
+    // --- Тесты таблицы значений ---
+
+    #[test]
+    fn test_generate_values_table_basic() {
+        let mut app = PlotApp::default();
+        app.graphs.clear();
+        app.graphs.push(GraphEntry::new("f1", Color32::RED, "x"));
+        app.recompute_all();
+        
+        let table = app.generate_values_table(0, 5);
+        assert!(table.is_some());
+        let table = table.unwrap();
+        assert_eq!(table.len(), 5);
+        
+        // Для функции y = x, первая точка должна быть при x = viewport.x_min
+        let first = table[0];
+        assert!(first.0.abs() - app.viewport.x_min.abs() < 0.01);
+    }
+
+    #[test]
+    fn test_generate_values_table_empty_graph() {
+        let mut app = PlotApp::default();
+        app.graphs.clear();
+        // Не добавляем графики — таблица должна вернуть None
+        let table = app.generate_values_table(0, 5);
+        assert!(table.is_none());
+    }
+
+    #[test]
+    fn test_generate_values_table_steps_range() {
+        let mut app = PlotApp::default();
+        app.graphs.clear();
+        app.graphs.push(GraphEntry::new("f1", Color32::RED, "x"));
+        app.recompute_all();
+        
+        // Минимальное количество шагов
+        let table_min = app.generate_values_table(0, 2);
+        assert!(table_min.is_some());
+        assert_eq!(table_min.unwrap().len(), 2);
+        
+        // Максимальное количество шагов
+        let table_max = app.generate_values_table(0, 10000);
+        assert!(table_max.is_some());
+        // Должно быть ограничено 1000
+        assert_eq!(table_max.unwrap().len(), 1000);
+    }
+
+    #[test]
+    fn test_generate_values_table_sin() {
+        let mut app = PlotApp::default();
+        app.graphs.clear();
+        app.graphs.push(GraphEntry::new("f1", Color32::RED, "sin(x)"));
+        app.recompute_all();
+        
+        let table = app.generate_values_table(0, 10);
+        assert!(table.is_some());
+        let table = table.unwrap();
+        
+        // Для sin(x) значения должны быть в диапазоне [-1, 1]
+        for (_, y) in &table {
+            if y.is_finite() {
+                assert!(*y >= -1.0 - 1e-10, "Y должно быть >= -1");
+                assert!(*y <= 1.0 + 1e-10, "Y должно быть <= 1");
+            }
+        }
     }
 }
