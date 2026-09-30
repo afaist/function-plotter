@@ -3,6 +3,7 @@ use std::time::Instant;
 
 use egui::{Color32, Pos2, Rect};
 
+use crate::config;
 use crate::evaluator::PlotData;
 use crate::parser::{self, ParsedFormula};
 use crate::renderer::{PlotStyle, Viewport};
@@ -113,8 +114,9 @@ pub struct PlotApp {
     /// Флаг: показать окно "О программе".
     pub show_about_window: bool,
     /// Последний размер canvas для отслеживания ресайза
-    #[allow(dead_code)]
     pub _last_canvas_rect: Option<Rect>,
+    /// Размер окна для сохранения
+    pub window_size: [f32; 2],
 }
 
 impl Default for PlotApp {
@@ -139,6 +141,7 @@ impl Default for PlotApp {
             show_help_window: false,
             show_about_window: false,
             _last_canvas_rect: None,
+            window_size: [1000.0, 700.0],
         };
         app.graphs.push(GraphEntry::new(
             "f1",
@@ -277,6 +280,17 @@ impl PlotApp {
         intersections
     }
 
+    /// Сохранить размер окна в config.
+    pub fn save_window_size(&mut self) {
+        let config = config::AppConfig::load();
+        let new_config = config::AppConfig {
+            window_width: self.window_size[0] as f64,
+            window_height: self.window_size[1] as f64,
+            ..config
+        };
+        let _ = new_config.save();
+    }
+
     /// Предложить сохранить сессию при выходе.
     /// Возвращает путь, если пользователь выбрал файл для сохранения.
     pub fn prompt_save_on_exit(&mut self) -> Option<PathBuf> {
@@ -367,6 +381,10 @@ impl eframe::App for PlotApp {
                         self.session_path = Some(p.clone());
                         self.last_session_path = Some(p.clone());
                         self.pending_save_on_exit = false;
+                        // Сохраняем путь в config
+                        let mut config = config::AppConfig::load();
+                        config.last_session_path = Some(p.to_string_lossy().to_string());
+                        let _ = config.save();
                         self.status_msg =
                             Some(StatusMessage::Info(format!("Загружено: {}", p.display())));
                         self.status_time = Some(Instant::now());
@@ -412,8 +430,42 @@ impl eframe::App for PlotApp {
         // Автоматический пересчёт dirty графиков
         self.recompute_all();
 
-        // --- Левая панель управления ---
+        // --- Запрос на сохранение сессии при выходе ---
         let ctx = ui.ctx().clone();
+        if self.pending_save_on_exit {
+            if ctx.input(|i| i.viewport().close_requested()) {
+                let should_save = rfd::FileDialog::new()
+                    .set_file_name("plot_session.json")
+                    .add_filter("JSON", &["json"])
+                    .save_file()
+                    .map(|p| {
+                        let session = crate::session::SessionData::from_app(self);
+                        if let Err(e) = session.save_to_file(&p) {
+                            self.status_msg = Some(StatusMessage::Error(format!("Ошибка сохранения: {e}")));
+                            self.status_time = Some(Instant::now());
+                            return false;
+                        }
+                        self.session_path = Some(p.clone());
+                        self.last_session_path = Some(p.clone());
+                        // Сохраняем путь в config
+                        let mut config = config::AppConfig::load();
+                        config.last_session_path = Some(p.to_string_lossy().to_string());
+                        let _ = config.save();
+                        self.pending_save_on_exit = false;
+                        self.status_msg = Some(StatusMessage::Info("Сессия сохранена перед выходом".to_string()));
+                        self.status_time = Some(Instant::now());
+                        true
+                    })
+                    .unwrap_or(false);
+                if should_save {
+                    // Разрешаем закрытие
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+                // Если not_save — просто игнорируем запрос на закрытие
+            }
+        }
+
+        // --- Левая панель управления ---
         egui::Panel::left("controls")
             .resizable(true)
             .default_size(260.0)

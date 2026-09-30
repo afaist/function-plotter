@@ -21,6 +21,9 @@ pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         if prev.size() != rect.size() {
             app.mark_all_dirty();
             ctx.request_repaint();
+            // Сохраняем новый размер окна
+            app.window_size = [rect.width(), rect.height()];
+            app.save_window_size();
         }
     }
     app._last_canvas_rect = Some(rect);

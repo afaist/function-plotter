@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 /// Константа версии формата конфигурации.
-pub const CONFIG_VERSION: u32 = 1;
+pub const CONFIG_VERSION: u32 = 2;
 
 /// Дефолтные значения конфигурации.
 pub const DEFAULT_WINDOW_WIDTH: f64 = 1000.0;
@@ -18,6 +18,7 @@ pub struct AppConfig {
     pub window_width: f64,
     pub window_height: f64,
     pub auto_load_last_session: bool,
+    pub last_session_path: Option<String>,
 }
 
 impl Default for AppConfig {
@@ -27,6 +28,7 @@ impl Default for AppConfig {
             window_width: DEFAULT_WINDOW_WIDTH,
             window_height: DEFAULT_WINDOW_HEIGHT,
             auto_load_last_session: DEFAULT_AUTO_LOAD,
+            last_session_path: None,
         }
     }
 }

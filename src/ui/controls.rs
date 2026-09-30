@@ -402,6 +402,10 @@ fn show_session_ui(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui) {
                     app.session_path = Some(p.clone());
                     app.last_session_path = Some(p.clone());
                     app.pending_save_on_exit = false;
+                    // Сохраняем путь в config
+                    let mut config = config::AppConfig::load();
+                    config.last_session_path = Some(p.to_string_lossy().to_string());
+                    let _ = config.save();
                     app.status_msg =
                         Some(StatusMessage::Info(format!("Сохранено: {}", p.display())));
                     app.status_time = Some(Instant::now());
@@ -426,6 +430,10 @@ fn show_session_ui(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui) {
                     app.session_path = Some(p.clone());
                     app.last_session_path = Some(p.clone());
                     app.pending_save_on_exit = false;
+                    // Сохраняем путь в config
+                    let mut config = config::AppConfig::load();
+                    config.last_session_path = Some(p.to_string_lossy().to_string());
+                    let _ = config.save();
                     app.status_msg =
                         Some(StatusMessage::Info(format!("Загружено: {}", p.display())));
                     app.status_time = Some(Instant::now());
@@ -446,6 +454,10 @@ fn show_session_ui(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui) {
                 Ok(()) => {
                     app.last_session_path = app.session_path.clone();
                     app.pending_save_on_exit = false;
+                    // Сохраняем путь в config
+                    let mut config = config::AppConfig::load();
+                    config.last_session_path = Some(p.to_string_lossy().to_string());
+                    let _ = config.save();
                     app.status_msg = Some(StatusMessage::Info("Сессия сохранена".to_string()));
                     app.status_time = Some(Instant::now());
                 }

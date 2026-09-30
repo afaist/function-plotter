@@ -7,6 +7,8 @@ mod renderer;
 mod session;
 mod ui;
 
+use std::path::PathBuf;
+
 pub use export::save_dialog;
 pub use export::save_png;
 
@@ -83,8 +85,13 @@ fn main() -> eframe::Result {
         Box::new(|_cc| {
             let mut app = app::PlotApp::default();
 
-            // Проверяем auto-load
+            // Загружаем конфигурацию и инициализируем last_session_path
             let config = config::AppConfig::load();
+            if let Some(ref path_str) = config.last_session_path {
+                app.last_session_path = Some(PathBuf::from(path_str));
+            }
+
+            // Проверяем auto-load
             if config.auto_load_last_session {
                 app.try_load_last_session();
             }
