@@ -1,12 +1,13 @@
 use mathexpr::builder::{Executable, Expression};
 
-/// Тип формулы: обычная, производная, интеграл или полярная.
+/// Тип формулы: обычная, производная, интеграл, полярная или параметрическая.
 #[derive(Clone, Debug, PartialEq)]
 pub enum FormulaType {
     Regular,
     Derivative,
     Integral,
     Polar,
+    Parametric,
 }
 
 /// Разобранная формула, готовая к вычислению.
@@ -28,6 +29,12 @@ pub enum ParsedFormula {
         theta_min: f64,
         theta_max: f64,
     },
+    Parametric {
+        x_formula: Box<ParsedFormula>,
+        y_formula: Box<ParsedFormula>,
+        t_min: f64,
+        t_max: f64,
+    },
 }
 
 impl ParsedFormula {
@@ -42,6 +49,7 @@ impl ParsedFormula {
                 upper: _,
             } => f64::NAN,
             Self::Polar { inner, .. } => inner.eval(x),
+            Self::Parametric { x_formula, .. } => x_formula.eval(x),
         }
     }
 
@@ -52,6 +60,7 @@ impl ParsedFormula {
             Self::Derivative { .. } => FormulaType::Derivative,
             Self::Integral { .. } => FormulaType::Integral,
             Self::Polar { .. } => FormulaType::Polar,
+            Self::Parametric { .. } => FormulaType::Parametric,
         }
     }
 
@@ -61,6 +70,7 @@ impl ParsedFormula {
             Self::Derivative { inner } => Some(inner),
             Self::Integral { inner, .. } => Some(inner),
             Self::Polar { inner, .. } => Some(inner),
+            Self::Parametric { x_formula, .. } => Some(x_formula),
             Self::Regular { .. } => None,
         }
     }
@@ -81,6 +91,19 @@ impl ParsedFormula {
                 theta_max,
                 ..
             } => Some((*theta_min, *theta_max)),
+            _ => None,
+        }
+    }
+
+    /// Получить границы t и формулы (если это параметрическая).
+    pub fn parametric_bounds(&self) -> Option<(&ParsedFormula, &ParsedFormula, f64, f64)> {
+        match self {
+            Self::Parametric {
+                x_formula,
+                y_formula,
+                t_min,
+                t_max,
+            } => Some((x_formula, y_formula, *t_min, *t_max)),
             _ => None,
         }
     }
@@ -247,6 +270,65 @@ pub fn parse(input: &str) -> Result<ParsedFormula, String> {
             });
         }
         return Err("Неверный синтаксис polar(...). Ожидается polar(выражение, theta_min, theta_max)".into());
+    }
+
+    // Обработка parametric(x(t), y(t), t_min, t_max)
+    if let Some(inner_start) = trimmed.strip_prefix("parametric(") {
+        if let Some(idx) = find_matching_paren(inner_start, 0) {
+            let args_str = &inner_start[..idx];
+            let args = split_args(args_str);
+
+            if args.len() < 4 {
+                return Err(
+                    "Неверный синтаксис parametric(...). Ожидается parametric(x(t), y(t), t_min, t_max)".into(),
+                );
+            }
+
+            let x_expr = &args[0];
+            let y_expr = &args[1];
+            let t_min_str = &args[2];
+            let t_max_str = &args[3];
+
+            // Парсим x(t) и y(t) с переменной t
+            let x_expr_parsed = Expression::parse(x_expr).map_err(|e| format!("parametric x: {e}"))?;
+            let x_formula = x_expr_parsed
+                .compile(&["t"])
+                .map_err(|e| format!("parametric x compile: {e}"))?;
+            
+            let y_expr_parsed = Expression::parse(y_expr).map_err(|e| format!("parametric y: {e}"))?;
+            let y_formula = y_expr_parsed
+                .compile(&["t"])
+                .map_err(|e| format!("parametric y compile: {e}"))?;
+
+            // Парсим границы t как выражения (должны быть константами)
+            let t_min_expr =
+                Expression::parse(t_min_str).map_err(|e| format!("Граница t_min: {e}"))?;
+            let t_min = t_min_expr
+                .compile_no_vars()
+                .ok()
+                .and_then(|e| e.eval(&[]).ok())
+                .unwrap_or(f64::NAN);
+
+            let t_max_expr =
+                Expression::parse(t_max_str).map_err(|e| format!("Граница t_max: {e}"))?;
+            let t_max = t_max_expr
+                .compile_no_vars()
+                .ok()
+                .and_then(|e| e.eval(&[]).ok())
+                .unwrap_or(f64::NAN);
+
+            if !t_min.is_finite() || !t_max.is_finite() {
+                return Err("Границы t должны быть конечными числами".into());
+            }
+
+            return Ok(ParsedFormula::Parametric {
+                x_formula: Box::new(ParsedFormula::Regular { compiled: x_formula }),
+                y_formula: Box::new(ParsedFormula::Regular { compiled: y_formula }),
+                t_min,
+                t_max,
+            });
+        }
+        return Err("Неверный синтаксис parametric(...). Ожидается parametric(x(t), y(t), t_min, t_max)".into());
     }
 
     // Обычная формула
@@ -576,5 +658,44 @@ mod tests {
     fn formula_type_polar() {
         let f = parse("polar(cos(x), 0, 2*pi)").unwrap();
         assert_eq!(f.formula_type(), FormulaType::Polar);
+    }
+
+    // --- Параметрические уравнения ---
+
+    #[test]
+    fn parse_parametric_simple() {
+        let result = parse("parametric(cos(t), sin(t), 0, 2*pi)");
+        assert!(result.is_ok());
+        let formula = result.unwrap();
+        assert_eq!(formula.formula_type(), FormulaType::Parametric);
+        let bounds = formula.parametric_bounds().unwrap();
+        assert!((bounds.2 - 0.0).abs() < 1e-10);
+        assert!((bounds.3 - 2.0 * std::f64::consts::PI).abs() < 1e-10);
+    }
+
+    #[test]
+    fn parse_parametric_cycloid() {
+        let result = parse("parametric(t-sin(t), 1-cos(t), 0, 2*pi)");
+        assert!(result.is_ok());
+        let formula = result.unwrap();
+        assert_eq!(formula.formula_type(), FormulaType::Parametric);
+    }
+
+    #[test]
+    fn parse_parametric_too_few_args() {
+        let result = parse("parametric(cos(t), sin(t), 0)");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_parametric_invalid_bounds() {
+        let result = parse("parametric(x, y, a, b)");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn formula_type_parametric() {
+        let f = parse("parametric(cos(t), sin(t), 0, 2*pi)").unwrap();
+        assert_eq!(f.formula_type(), FormulaType::Parametric);
     }
 }

@@ -668,15 +668,26 @@ mod tests {
 
     #[test]
     fn test_window_size_from_config() {
-        let config_path = create_temp_config(1200.0, 800.0, "_from_config");
+        let temp_dir = std::env::temp_dir().join("function-plotter-test-parametric");
+        let _ = fs::create_dir_all(&temp_dir);
+        let config_path = temp_dir.join("config_test.json");
+        
+        // Создаём config с нужным размером
+        let config = AppConfig {
+            version: 2,
+            window_width: 1200.0,
+            window_height: 800.0,
+            auto_load_last_session: false,
+            last_session_path: None,
+        };
+        config.save_to(&config_path).ok();
         
         // Загружаем config и проверяем, что значения правильные
-        let config = AppConfig::load_from(&config_path);
-        assert_eq!(config.window_width, 1200.0);
-        assert_eq!(config.window_height, 800.0);
+        let loaded = AppConfig::load_from(&config_path);
+        assert_eq!(loaded.window_width, 1200.0, "window_width should be 1200.0");
+        assert_eq!(loaded.window_height, 800.0, "window_height should be 800.0");
         
         // Чистим
-        let temp_dir = config_path.parent().unwrap().to_path_buf();
         let _ = fs::remove_dir_all(&temp_dir);
     }
 

@@ -134,6 +134,27 @@ pub fn all_templates() -> &'static [FunctionTemplate] {
             formula: "sin(x)/x",
             category: "Специальные",
         },
+        // Параметрические
+        FunctionTemplate {
+            name: "Циклоида: x=t-sin(t), y=1-cos(t)",
+            formula: "parametric(t-sin(t), 1-cos(t), 0, 2*pi)",
+            category: "Параметрические",
+        },
+        FunctionTemplate {
+            name: "Окружность: x=cos(t), y=sin(t)",
+            formula: "parametric(cos(t), sin(t), 0, 2*pi)",
+            category: "Параметрические",
+        },
+        FunctionTemplate {
+            name: "Спираль: x=t*cos(t), y=t*sin(t)",
+            formula: "parametric(t*cos(t), t*sin(t), 0, 4*pi)",
+            category: "Параметрические",
+        },
+        FunctionTemplate {
+            name: "Эллипс: x=3*cos(t), y=2*sin(t)",
+            formula: "parametric(3*cos(t), 2*sin(t), 0, 2*pi)",
+            category: "Параметрические",
+        },
     ]
 }
 

@@ -114,6 +114,27 @@ impl PlotData {
                     }
                 }
             }
+            FormulaType::Parametric => {
+                // Параметрические уравнения: x = f(t), y = g(t)
+                if let Some((x_formula, y_formula, t_min, t_max)) = formula.parametric_bounds() {
+                    let n = n.max(2);
+                    let dt = (t_max - t_min) / (n as f64 - 1.0);
+
+                    for i in 0..n {
+                        let t = t_min + dt * i as f64;
+                        let x = x_formula.eval(t);
+                        let y = y_formula.eval(t);
+
+                        if x.is_finite() && y.is_finite() {
+                            y_min = y_min.min(y);
+                            y_max = y_max.max(y);
+                            points.push((x, y));
+                        } else {
+                            points.push((f64::NAN, f64::NAN));
+                        }
+                    }
+                }
+            }
         }
 
         if !y_min.is_finite() || !y_max.is_finite() {

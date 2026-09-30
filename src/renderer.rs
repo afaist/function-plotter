@@ -205,6 +205,21 @@ pub fn draw_curve_with_type(
             draw_dashed_line(painter, &sp, stroke, (6.0, 3.0));
             return;
         }
+        FormulaType::Parametric => {
+            // Для параметрических — оранжевая пунктирная линия (точки-тире)
+            let sp: Vec<Pos2> = points
+                .iter()
+                .filter_map(|&(x, y)| {
+                    if y.is_finite() {
+                        Some(viewport.math_to_screen(x, y, rect))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            draw_dashed_line(painter, &sp, stroke, (8.0, 4.0));
+            return;
+        }
         FormulaType::Regular => stroke,
     };
 
