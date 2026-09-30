@@ -40,6 +40,7 @@ pub struct IntersectionPoint {
 }
 
 /// Один график: формула, стиль, вычисленные точки.
+#[derive(Clone)]
 pub struct GraphEntry {
     pub formula_text: String,
     pub parsed: Option<ParsedFormula>,
@@ -121,6 +122,12 @@ pub struct PlotApp {
     pub has_unsaved_changes: bool,
     /// Флаг: отменить закрытие (ожидание действия пользователя).
     pub cancel_close: bool,
+    /// Стек для undo: снимки состояния graphs
+    pub undo_stack: Vec<Vec<GraphEntry>>,
+    /// Стек для redo: снимки состояния graphs
+    pub redo_stack: Vec<Vec<GraphEntry>>,
+    /// Максимальный размер истории
+    pub max_history: usize,
     /// Последний размер canvas для отслеживания ресайза
     pub _last_canvas_rect: Option<Rect>,
     /// Размер окна для сохранения
@@ -152,6 +159,9 @@ impl Default for PlotApp {
             is_ready_to_close: false,
             has_unsaved_changes: false,
             cancel_close: false,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
+            max_history: 50,
             _last_canvas_rect: None,
             window_size: [1000.0, 700.0],
         };
@@ -309,6 +319,42 @@ impl PlotApp {
         self.window_size = [config.window_width as f32, config.window_height as f32];
     }
 
+    /// Сохранить текущее состояние graphs в undo_stack.
+    pub fn save_snapshot(&mut self) {
+        self.undo_stack.push(self.graphs.clone());
+        self.redo_stack.clear(); // новое действие — очищаем redo
+        // Ограничить размер истории
+        if self.undo_stack.len() > self.max_history {
+            self.undo_stack.remove(0);
+        }
+    }
+
+    /// Отменить последнее действие. Возвращает true если было что отменять.
+    pub fn undo(&mut self) -> bool {
+        if self.undo_stack.is_empty() {
+            return false;
+        }
+        // Сохраняем текущее состояние в redo
+        self.redo_stack.push(self.graphs.clone());
+        // Восстанавливаем предыдущее
+        self.graphs = self.undo_stack.pop().unwrap();
+        self.mark_all_dirty();
+        true
+    }
+
+    /// Повторить отменённое действие. Возвращает true если было что повторять.
+    pub fn redo(&mut self) -> bool {
+        if self.redo_stack.is_empty() {
+            return false;
+        }
+        // Сохраняем текущее состояние в undo
+        self.undo_stack.push(self.graphs.clone());
+        // Восстанавливаем следующее
+        self.graphs = self.redo_stack.pop().unwrap();
+        self.mark_all_dirty();
+        true
+    }
+
     /// Предложить сохранить сессию при выходе.
     /// Возвращает путь, если пользователь выбрал файл для сохранения.
     pub fn prompt_save_on_exit(&mut self) -> Option<PathBuf> {
@@ -439,6 +485,24 @@ impl eframe::App for PlotApp {
         let input = ui.input(|i| i.clone());
         let ctrl = input.modifiers.ctrl || input.modifiers.command;
 
+        // Ctrl+Z — отмена
+        if input.key_pressed(egui::Key::Z) && ctrl && !input.modifiers.shift {
+            if self.undo() {
+                self.status_msg = Some(StatusMessage::Info("Отменено".to_string()));
+                self.status_time = Some(Instant::now());
+            }
+        }
+
+        // Ctrl+Shift+Z или Ctrl+Y — повтор
+        if (input.key_pressed(egui::Key::Z) && input.modifiers.shift && ctrl)
+            || (input.key_pressed(egui::Key::Y) && ctrl)
+        {
+            if self.redo() {
+                self.status_msg = Some(StatusMessage::Info("Повторено".to_string()));
+                self.status_time = Some(Instant::now());
+            }
+        }
+
         // Ctrl+N — новый график
         if input.key_pressed(egui::Key::N) && ctrl {
             let palette = [
@@ -453,6 +517,7 @@ impl eframe::App for PlotApp {
                 .push(GraphEntry::new(&format!("f{}", idx + 1), color, "x"));
             self.selected_graph = Some(self.graphs.len() - 1);
             self.has_unsaved_changes = true;
+            self.save_snapshot();
             self.recompute_all();
         }
 
@@ -497,6 +562,7 @@ impl eframe::App for PlotApp {
                         self.selected_graph = Some(idx);
                     }
                     self.has_unsaved_changes = true;
+                    self.save_snapshot();
                     self.recompute_all();
                 }
             }
@@ -621,5 +687,112 @@ mod tests {
         // Чистим
         let temp_dir = config_path.parent().unwrap().to_path_buf();
         let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    // --- Undo/Redo тесты ---
+
+    #[test]
+    fn test_undo_redo_basic() {
+        let mut app = PlotApp::default();
+        let initial_count = app.graphs.len();
+        
+        // Добавляем снимок и новый график
+        app.save_snapshot();
+        app.graphs.push(GraphEntry::new("f_test", Color32::RED, "x^2"));
+        assert_eq!(app.graphs.len(), initial_count + 1);
+        
+        // Undo — должен вернуть начальное состояние
+        assert!(app.undo());
+        assert_eq!(app.graphs.len(), initial_count);
+        
+        // Redo — должен вернуть добавленный график
+        assert!(app.redo());
+        assert_eq!(app.graphs.len(), initial_count + 1);
+    }
+
+    #[test]
+    fn test_undo_redo_multiple() {
+        let mut app = PlotApp::default();
+        let initial_count = app.graphs.len();
+        
+        // 3 действия
+        app.save_snapshot();
+        app.graphs.push(GraphEntry::new("f1", Color32::RED, "x"));
+        
+        app.save_snapshot();
+        app.graphs.push(GraphEntry::new("f2", Color32::BLUE, "x^2"));
+        
+        app.save_snapshot();
+        app.graphs.push(GraphEntry::new("f3", Color32::GREEN, "x^3"));
+        
+        assert_eq!(app.graphs.len(), initial_count + 3);
+        
+        // Undo 2 раза
+        assert!(app.undo());
+        assert_eq!(app.graphs.len(), initial_count + 2);
+        assert!(app.undo());
+        assert_eq!(app.graphs.len(), initial_count + 1);
+        
+        // Redo 1 раз
+        assert!(app.redo());
+        assert_eq!(app.graphs.len(), initial_count + 2);
+    }
+
+    #[test]
+    fn test_undo_redo_clear() {
+        let mut app = PlotApp::default();
+        
+        // Добавляем действие
+        app.save_snapshot();
+        app.graphs.push(GraphEntry::new("f1", Color32::RED, "x"));
+        
+        // Undo
+        assert!(app.undo());
+        assert_eq!(app.graphs.len(), 2); // начальное состояние
+        
+        // Новое действие после undo — redo должен очиститься
+        app.save_snapshot();
+        app.graphs.push(GraphEntry::new("f2", Color32::BLUE, "x^2"));
+        
+        // Redo должен быть пуст
+        assert!(!app.redo());
+    }
+
+    #[test]
+    fn test_undo_redo_limit() {
+        let mut app = PlotApp::default();
+        app.max_history = 3;
+        
+        // Начальное состояние: 2 графика
+        let initial_count = app.graphs.len();
+        assert_eq!(initial_count, 2);
+        
+        // Добавляем 5 действий
+        for i in 0..5 {
+            app.save_snapshot();
+            app.graphs.push(GraphEntry::new(&format!("f{}", i), Color32::RED, "x"));
+        }
+        
+        // Должно остаться только 3 последних (из-за max_history = 3)
+        assert_eq!(app.undo_stack.len(), 3);
+        
+        // Undo 3 раза — должны восстановиться первые 2 графика
+        // После 3 undos: 2 + (5-3) = 4 графика
+        assert!(app.undo());
+        assert!(app.undo());
+        assert!(app.undo());
+        assert_eq!(app.graphs.len(), initial_count + 2); // 2 + 2 = 4
+        
+        // Ещё один undo — стек пуст
+        assert!(!app.undo());
+    }
+
+    #[test]
+    fn test_undo_no_graphs() {
+        let mut app = PlotApp::default();
+        
+        // Undo без снимков — ничего не происходит
+        assert!(!app.undo());
+        assert_eq!(app.graphs.len(), 2); // начальное состояние
     }
 }

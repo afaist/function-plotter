@@ -5,6 +5,7 @@ mod export;
 mod parser;
 mod renderer;
 mod session;
+mod templates;
 mod ui;
 
 use std::path::PathBuf;

@@ -9,6 +9,7 @@ use crate::config;
 use crate::export;
 use crate::export::{save_dialog, save_png};
 use crate::parser::ParsedFormula;
+use crate::renderer::Viewport;
 
 /// Отрисовка одной записи графика в левой панели.
 /// Возвращает true, если были изменения.
@@ -71,8 +72,54 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
 
     let mut need_recompute = false;
     let mut need_remove: Option<usize> = None;
+    let mut need_save_snapshot = false;
+
+    // Кнопка шаблонов
+    let mut show_templates = false;
+    if ui.button("📋 Шаблоны").clicked() {
+        show_templates = true;
+    }
+
+    // Окно шаблонов
+    if show_templates {
+        egui::Window::new("Шаблоны функций")
+            .resizable(true)
+            .show(ctx, |ui| {
+                ui.label("Выберите шаблон для добавления графика:");
+                ui.separator();
+                
+                for category in crate::templates::categories() {
+                    ui.heading(category);
+                    let templates = crate::templates::templates_by_category(category);
+                    for tmpl in templates {
+                        if ui.button(tmpl.name).clicked() {
+                            let palette = [
+                                Color32::from_rgb(150, 255, 150),
+                                Color32::from_rgb(255, 255, 100),
+                                Color32::from_rgb(200, 100, 255),
+                                Color32::from_rgb(100, 255, 200),
+                            ];
+                            let idx = app.graphs.len();
+                            let color = palette[idx % palette.len()];
+                            app.graphs.push(GraphEntry::new(
+                                &format!("f{}", idx + 1),
+                                color,
+                                tmpl.formula,
+                            ));
+                            app.selected_graph = Some(app.graphs.len() - 1);
+                            app.has_unsaved_changes = true;
+                            need_save_snapshot = true;
+                            need_recompute = true;
+                            show_templates = false;
+                        }
+                    }
+                    ui.add_space(2.0);
+                }
+            });
+    }
 
     // Список графиков
+    let mut any_changed = false;
     for i in 0..app.graphs.len() {
         let color = app.graphs[i].style.color;
         let label = app.graphs[i].style.label.clone();
@@ -80,6 +127,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         let mut formula = app.graphs[i].formula_text.clone();
         let parse_error = app.graphs[i].parse_error.clone();
 
+        let mut changed = false;
         ui.push_id(i, |ui| {
             if app.selected_graph == Some(i) {
                 let frame = egui::Frame {
@@ -88,7 +136,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                     ..Default::default()
                 };
                 frame.show(ui, |ui| {
-                    let changed = render_graph_entry(
+                    changed = render_graph_entry(
                         ui,
                         i,
                         color,
@@ -100,12 +148,9 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                         &mut need_remove,
                         &mut need_recompute,
                     );
-                    if changed {
-                        app.has_unsaved_changes = true;
-                    }
                 });
             } else {
-                let changed = render_graph_entry(
+                changed = render_graph_entry(
                     ui,
                     i,
                     color,
@@ -117,9 +162,6 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                     &mut need_remove,
                     &mut need_recompute,
                 );
-                if changed {
-                    app.has_unsaved_changes = true;
-                }
             }
         });
 
@@ -130,6 +172,17 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
             g.formula_text = formula;
             g.reparse();
         }
+        // Сохраняем снимок при изменении формулы или видимости
+        if changed {
+            app.has_unsaved_changes = true;
+            need_save_snapshot = true;
+            any_changed = true;
+        }
+    }
+
+    // Сохраняем снимок после применения изменений к графикам
+    if any_changed || need_save_snapshot {
+        app.save_snapshot();
     }
 
     // Добавить график
@@ -145,12 +198,14 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         app.graphs
             .push(GraphEntry::new(&format!("f{}", idx + 1), color, "x"));
         app.has_unsaved_changes = true;
+        need_save_snapshot = true;
         need_recompute = true;
     }
 
     if let Some(i) = need_remove {
         app.graphs.remove(i);
         app.has_unsaved_changes = true;
+        need_save_snapshot = true;
         need_recompute = true;
     }
 
@@ -169,6 +224,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
             app.x_min = x_min as f64;
             app.has_unsaved_changes = true;
             app.mark_all_dirty();
+            need_save_snapshot = true;
         }
     });
     ui.horizontal(|ui| {
@@ -177,6 +233,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
             app.x_max = x_max as f64;
             app.has_unsaved_changes = true;
             app.mark_all_dirty();
+            need_save_snapshot = true;
         }
     });
     ui.horizontal(|ui| {
@@ -188,6 +245,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
             app.n_points = n as usize;
             app.has_unsaved_changes = true;
             app.mark_all_dirty();
+            need_save_snapshot = true;
         }
     });
 
@@ -197,16 +255,26 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     ui.heading("Диапазон Y");
     if ui.checkbox(&mut app.auto_y, "Авто-масштаб Y").changed() {
         app.has_unsaved_changes = true;
+        need_save_snapshot = true;
     }
 
     // Адаптивный алгоритм
     ui.add_space(4.0);
     if ui.checkbox(&mut app.adaptive, "Адаптивная плотность").changed() {
         app.has_unsaved_changes = true;
+        need_save_snapshot = true;
     }
     if app.adaptive {
+        let mut tolerance = app.adaptive_tolerance;
         ui.horizontal(|ui| {
-            ui.add(egui::Slider::new(&mut app.adaptive_tolerance, 0.0001..=1.0).text("точность"));
+            if ui
+                .add(egui::Slider::new(&mut tolerance, 0.0001..=1.0).text("точность"))
+                .changed()
+            {
+                app.adaptive_tolerance = tolerance;
+                app.has_unsaved_changes = true;
+                need_save_snapshot = true;
+            }
         });
     }
 
@@ -217,17 +285,41 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
             ui.label("y min:");
             if ui.add(egui::DragValue::new(&mut y_min)).changed() {
                 app.has_unsaved_changes = true;
+                need_save_snapshot = true;
             }
         });
         ui.horizontal(|ui| {
             ui.label("y max:");
             if ui.add(egui::DragValue::new(&mut y_max)).changed() {
                 app.has_unsaved_changes = true;
+                need_save_snapshot = true;
             }
         });
         app.viewport.y_min = y_min as f64;
         app.viewport.y_max = y_max as f64;
     }
+
+    // Кнопки управления масштабом
+    ui.add_space(4.0);
+    ui.horizontal(|ui| {
+        if ui.button("⟲ Сбросить масштаб").clicked() {
+            app.viewport = Viewport::new();
+            app.x_min = app.viewport.x_min;
+            app.x_max = app.viewport.x_max;
+            app.auto_y = true;
+            app.has_unsaved_changes = true;
+            need_save_snapshot = true;
+            need_recompute = true;
+        }
+    });
+    ui.horizontal(|ui| {
+        if ui.button(app.auto_y.then_some("⟳ Авто Y").unwrap_or("⟳ Авто Y (выкл)")).clicked() {
+            app.auto_y = !app.auto_y;
+            app.has_unsaved_changes = true;
+            need_save_snapshot = true;
+            need_recompute = true;
+        }
+    });
 
     // Экспорт
     ui.add_space(8.0);
