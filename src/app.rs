@@ -604,6 +604,7 @@ impl eframe::App for PlotApp {
         if self.show_save_dialog {
             let mut save_file = false;
             let mut close_without_save = false;
+            let mut cancel = false;
             
             egui::Window::new("Сохранить сессию?")
                 .resizable(false)
@@ -618,7 +619,7 @@ impl eframe::App for PlotApp {
                             close_without_save = true;
                         }
                         if ui.button("Отмена").clicked() {
-                            close_without_save = true;
+                            cancel = true;
                         }
                     });
                 });
@@ -648,13 +649,15 @@ impl eframe::App for PlotApp {
                 // Готовимся к закрытию
                 self.is_ready_to_close = true;
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-            }
-
-            if close_without_save {
+            } else if close_without_save {
                 self.show_save_dialog = false;
                 self.pending_save_on_exit = false;
-                // Закрываем приложение без сохранения
+                // Готовимся к закрытию — на следующем кадре close_requested() не покажет диалог
+                self.is_ready_to_close = true;
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            } else if cancel {
+                // Отмена — просто закрываем диалог, приложение остаётся открытым
+                self.show_save_dialog = false;
             }
 
             // Не показываем основной интерфейс
