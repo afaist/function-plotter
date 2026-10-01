@@ -318,10 +318,122 @@ pub fn save_png(_ctx: &Context, app: &PlotApp) -> Result<(), String> {
         }
     }
 
+    // Рисуем координаты (метки делений)
+    let text_color = Rgba([200, 200, 200, 255]);
+    let font = SimpleFont::new();
+    
+    // Метки по X
+    for i in 0..=n_grid_x {
+        let x = app.viewport.x_min + nice_step_x * i as f64;
+        if x >= app.viewport.x_min && x <= app.viewport.x_max {
+            let (sx, _) = math_to_screen(x, 0.0);
+            let label = format_coord(x, nice_step_x);
+            font.render_text(&mut img, &label, (sx - 20.0) as i32, 780, text_color);
+        }
+    }
+    
+    // Метки по Y
+    for i in 0..=n_grid_y {
+        let y = app.viewport.y_min + nice_step_y * i as f64;
+        if y >= app.viewport.y_min && y <= app.viewport.y_max {
+            let (_sx, sy) = math_to_screen(0.0, y);
+            let label = format_coord(y, nice_step_y);
+            font.render_text(&mut img, &label, 5, (sy - 6.0) as i32, text_color);
+        }
+    }
+
     img.save(&path)
         .map_err(|e| format!("Сохранение PNG: {e}"))?;
 
     Ok(())
+}
+
+/// Простой растровый шрифт 5x7 для экспорта PNG.
+struct SimpleFont {
+    /// Данные шрифта: для каждого ASCII-символа (32-126) — массив 5x7 бит
+    data: [Option<[u8; 7]>; 95],
+}
+
+impl SimpleFont {
+    fn new() -> Self {
+        // Простой моноширинный шрифт 5x7
+        // Каждая строка — байт, где биты = пиксели (0 = пусто, 1 = заполнено)
+        let mut data = [None; 95];
+        
+        // Заполняем простыми паттернами для цифр и основных символов
+        // '0' = 48, '1' = 49, и т.д.
+        data[48 - 32] = Some([0x00, 0x3E, 0x51, 0x49, 0x45, 0x3E, 0x00]); // 0
+        data[49 - 32] = Some([0x00, 0x00, 0x42, 0x7F, 0x40, 0x00, 0x00]); // 1
+        data[50 - 32] = Some([0x00, 0x42, 0x61, 0x51, 0x49, 0x46, 0x00]); // 2
+        data[51 - 32] = Some([0x00, 0x21, 0x41, 0x45, 0x4B, 0x31, 0x00]); // 3
+        data[52 - 32] = Some([0x00, 0x18, 0x14, 0x12, 0x7F, 0x10, 0x00]); // 4
+        data[53 - 32] = Some([0x00, 0x27, 0x45, 0x45, 0x45, 0x39, 0x00]); // 5
+        data[54 - 32] = Some([0x00, 0x3C, 0x4A, 0x49, 0x49, 0x30, 0x00]); // 6
+        data[55 - 32] = Some([0x00, 0x01, 0x71, 0x09, 0x05, 0x03, 0x00]); // 7
+        data[56 - 32] = Some([0x00, 0x36, 0x49, 0x49, 0x49, 0x36, 0x00]); // 8
+        data[57 - 32] = Some([0x00, 0x06, 0x49, 0x49, 0x29, 0x1E, 0x00]); // 9
+        data[45 - 32] = Some([0x00, 0x00, 0x00, 0x7F, 0x00, 0x00, 0x00]); // -
+        data[43 - 32] = Some([0x00, 0x00, 0x1C, 0x3E, 0x1C, 0x00, 0x00]); // +
+        data[47 - 32] = Some([0x00, 0x01, 0x06, 0x18, 0x30, 0x60, 0x00]); // /
+        data[46 - 32] = Some([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]); // . (пустой пока)
+        data[95 - 32] = Some([0x00, 0x00, 0x00, 0x7F, 0x00, 0x00, 0x00]); // _
+        
+        // Заполняем остальные символы заглушками
+        for i in 0..95 {
+            if data[i].is_none() {
+                data[i] = Some([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+            }
+        }
+        
+        Self { data }
+    }
+
+    /// Нарисовать текст на изображении.
+    fn render_text(&self, img: &mut RgbaImage, text: &str, start_x: i32, start_y: i32, color: Rgba<u8>) {
+        let mut x = start_x;
+        for c in text.chars() {
+            if c as u32 >= 32 && c as u32 <= 126 {
+                let idx = (c as u32 - 32) as usize;
+                if let Some(Some(row_data)) = self.data.get(idx).copied() {
+                    // Рисуем символ 5x7
+                    for row in 0..7 {
+                        let byte = row_data[row];
+                        for col in 0..5 {
+                            if byte & (1 << (4 - col)) != 0 {
+                                let px = x + col as i32;
+                                let py = start_y - row as i32;
+                                if px >= 0 && px < img.width() as i32 && py >= 0 && py < img.height() as i32 {
+                                    let pixel = img.get_pixel_mut(px as u32, py as u32);
+                                    pixel[0] = color[0];
+                                    pixel[1] = color[1];
+                                    pixel[2] = color[2];
+                                    pixel[3] = 255;
+                                }
+                            }
+                        }
+                    }
+                }
+                x += 7; // 5px + 2px gap
+            }
+        }
+    }
+}
+
+/// Выбрать количество знаков после запятой в зависимости от масштаба (шага сетки).
+fn format_coord(val: f64, step: f64) -> String {
+    if step <= 0.0001 {
+        format!("{val:.6}")
+    } else if step <= 0.001 {
+        format!("{val:.5}")
+    } else if step <= 0.01 {
+        format!("{val:.4}")
+    } else if step <= 0.1 {
+        format!("{val:.3}")
+    } else if step <= 1.0 {
+        format!("{val:.2}")
+    } else {
+        format!("{val:.1}")
+    }
 }
 
 #[cfg(test)]
