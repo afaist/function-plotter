@@ -29,12 +29,11 @@ fn render_graph_entry(
 ) -> bool {
     let mut changed = false;
     
+    // Верхняя строка: цвет + чекбокс + кнопка удаления
     ui.horizontal(|ui| {
-        let (rect, resp) = ui.allocate_exact_size(egui::vec2(12.0, 12.0), egui::Sense::click());
-        if resp.clicked() {
-            *selected_graph = Some(i);
-        }
-        ui.painter().rect_filled(rect, 0.0, color);
+        // Цветной индикатор побольше
+        let (rect, _resp) = ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
+        ui.painter().rect_filled(rect, 3.0, color);
         if ui.checkbox(visible, label.to_string()).changed() {
             changed = true;
         }
@@ -43,7 +42,7 @@ fn render_graph_entry(
             changed = true;
         }
     });
-
+    
     // Индикатор типа формулы
     if let Some((type_color, _icon, type_label)) = &formula_type_info {
         ui.horizontal(|ui| {
@@ -53,16 +52,21 @@ fn render_graph_entry(
                 .size(11.0));
         });
     }
-
+    
+    // Строка формулы — клик выделяет график
     let text_edit = egui::TextEdit::singleline(formula).desired_width(f32::INFINITY);
     let text_output = text_edit.show(ui);
-    let resp = &text_output.response;
-
-    // Не показываем ошибку парсинга для графиков из CSV
+    
+    // Клик по формуле или по типу формулы выделяет график
+    if text_output.response.clicked() {
+        *selected_graph = Some(i);
+    }
+    
+    // Отображаем ошибку парсинга только для не-C графиков
     if !has_raw_data {
         if let Some(ref err) = parse_error {
             ui.painter().rect_stroke(
-                resp.rect,
+                text_output.response.rect,
                 4.0,
                 egui::Stroke::new(1.5_f32, Color32::from_rgb(255, 80, 80)),
                 egui::StrokeKind::Inside,
@@ -71,7 +75,7 @@ fn render_graph_entry(
         }
     }
 
-    if resp.lost_focus() {
+    if text_output.response.lost_focus() {
         *need_recompute = true;
         changed = true;
     }
