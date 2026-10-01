@@ -12,6 +12,8 @@ use std::path::PathBuf;
 
 pub use export::save_dialog;
 pub use export::save_png;
+pub use export::open_csv_dialog;
+pub use export::load_csv;
 
 #[cfg(test)]
 mod app_tests {

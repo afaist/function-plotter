@@ -49,6 +49,8 @@ pub struct GraphEntry {
     pub data: Option<PlotData>,
     /// Нужно ли пересчитать точки (изменилась формула/диапазон).
     pub dirty: bool,
+    /// Сырые данные из CSV (x, y) — если график загружен из файла.
+    pub raw_data: Option<Vec<(f64, f64)>>,
 }
 
 impl GraphEntry {
@@ -64,9 +66,57 @@ impl GraphEntry {
             },
             data: None,
             dirty: true,
+            raw_data: None,
         };
         entry.reparse();
         entry
+    }
+
+    /// Создать график из сырых данных (импорт из CSV).
+    pub fn from_raw_data(label: &str, color: Color32, points: Vec<(f64, f64)>) -> Self {
+        let mut entry = Self {
+            formula_text: format!("data ({})", points.len()),
+            parsed: None,
+            parse_error: None,
+            style: PlotStyle {
+                color,
+                label: label.to_string(),
+                visible: true,
+            },
+            data: None,
+            dirty: false,
+            raw_data: Some(points),
+        };
+        entry.recompute_from_raw();
+        entry
+    }
+
+    /// Пересчитать PlotData из raw_data.
+    fn recompute_from_raw(&mut self) {
+        if let Some(ref points) = self.raw_data {
+            if points.is_empty() {
+                self.data = None;
+                return;
+            }
+            let mut y_min = f64::INFINITY;
+            let mut y_max = f64::NEG_INFINITY;
+            for &(_, y) in points {
+                if y.is_finite() {
+                    y_min = y_min.min(y);
+                    y_max = y_max.max(y);
+                }
+            }
+            if !y_min.is_finite() || !y_max.is_finite() {
+                y_min = -1.0;
+                y_max = 1.0;
+            }
+            self.data = Some(PlotData {
+                points: points.clone(),
+                y_min,
+                y_max,
+                fill_points: Vec::new(),
+            });
+        }
     }
 
     pub fn reparse(&mut self) {

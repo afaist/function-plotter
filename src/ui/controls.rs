@@ -25,6 +25,7 @@ fn render_graph_entry(
     need_remove: &mut Option<usize>,
     need_recompute: &mut bool,
     formula_type_info: Option<(Color32, String, String)>,
+    has_raw_data: bool,
 ) -> bool {
     let mut changed = false;
     
@@ -57,14 +58,17 @@ fn render_graph_entry(
     let text_output = text_edit.show(ui);
     let resp = &text_output.response;
 
-    if let Some(ref err) = parse_error {
-        ui.painter().rect_stroke(
-            resp.rect,
-            4.0,
-            egui::Stroke::new(1.5_f32, Color32::from_rgb(255, 80, 80)),
-            egui::StrokeKind::Inside,
-        );
-        ui.colored_label(Color32::from_rgb(255, 100, 100), err);
+    // Не показываем ошибку парсинга для графиков из CSV
+    if !has_raw_data {
+        if let Some(ref err) = parse_error {
+            ui.painter().rect_stroke(
+                resp.rect,
+                4.0,
+                egui::Stroke::new(1.5_f32, Color32::from_rgb(255, 80, 80)),
+                egui::StrokeKind::Inside,
+            );
+            ui.colored_label(Color32::from_rgb(255, 100, 100), err);
+        }
     }
 
     if resp.lost_focus() {
@@ -134,6 +138,8 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     let formula_types: Vec<Option<(Color32, String, String)>> = app.graphs.iter().map(|g| {
         g.formula_type_info().map(|(c, _icon, l)| (c, l.to_string(), l.to_string()))
     }).collect();
+    // Предварительно вычисляем has_raw_data
+    let has_raw_data: Vec<bool> = app.graphs.iter().map(|g| g.raw_data.is_some()).collect();
     for i in 0..app.graphs.len() {
         let color = app.graphs[i].style.color;
         let label = app.graphs[i].style.label.clone();
@@ -162,6 +168,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                         &mut need_remove,
                         &mut need_recompute,
                         formula_types[i].clone(),
+                        has_raw_data[i],
                     );
                 });
             } else {
@@ -177,6 +184,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                     &mut need_remove,
                     &mut need_recompute,
                     formula_types[i].clone(),
+                    has_raw_data[i],
                 );
             }
         });
@@ -186,7 +194,10 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
             g.style.visible = visible;
             g.style.label = label;
             g.formula_text = formula;
-            g.reparse();
+            // Не вызываем reparse() для графиков из CSV (у них нет формулы)
+            if g.raw_data.is_none() {
+                g.reparse();
+            }
         }
         // Сохраняем снимок при изменении формулы или видимости
         if changed {
@@ -382,8 +393,45 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     }
 }
 
-/// Панель экспорта (CSV, PNG).
-fn show_export_ui(app: &mut PlotApp, ctx: &Context, ui: &mut Ui, _need_recompute: &mut bool) {
+/// Панель экспорта/импорта (CSV, PNG).
+fn show_export_ui(app: &mut PlotApp, ctx: &Context, ui: &mut Ui, need_recompute: &mut bool) {
+    // Импорт CSV
+    if ui.button("📥 Импорт CSV").clicked() {
+        let path = export::open_csv_dialog();
+        if let Some(ref p) = path {
+            match export::load_csv(p) {
+                Ok(points) => {
+                    let count = points.len();
+                    let palette = [
+                        Color32::from_rgb(150, 255, 150),
+                        Color32::from_rgb(255, 255, 100),
+                        Color32::from_rgb(200, 100, 255),
+                        Color32::from_rgb(100, 255, 200),
+                    ];
+                    let idx = app.graphs.len();
+                    let color = palette[idx % palette.len()];
+                    let label = format!("data{}", idx + 1);
+                    app.graphs.push(GraphEntry::from_raw_data(&label, color, points));
+                    app.selected_graph = Some(app.graphs.len() - 1);
+                    app.has_unsaved_changes = true;
+                    *need_recompute = true;
+                    app.status_msg = Some(StatusMessage::Info(format!(
+                        "Импортировано {} точек из {}",
+                        count,
+                        p.display()
+                    )));
+                    app.status_time = Some(Instant::now());
+                }
+                Err(e) => {
+                    app.status_msg = Some(StatusMessage::Error(format!("Ошибка импорта: {e}")));
+                    app.status_time = Some(Instant::now());
+                }
+            }
+        }
+    }
+
+    ui.separator();
+
     if ui.button("Сохранить CSV (текущий график)").clicked() {
         if let Some(g) = app.graphs.iter().find(|g| g.parsed.is_some()) {
             if let Some(ref f) = g.parsed {

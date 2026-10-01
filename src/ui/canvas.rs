@@ -74,26 +74,25 @@ pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
 
     for g in &app.graphs {
         if let Some(ref data) = g.data {
-            if let Some(ref parsed) = g.parsed {
-                let formula_type = parsed.formula_type();
-                renderer::draw_curve_with_type(
+            // Для графиков из CSV (без parsed) используем Regular тип
+            let formula_type = g.parsed.as_ref().map(|p| p.formula_type()).unwrap_or(crate::parser::FormulaType::Regular);
+            renderer::draw_curve_with_type(
+                &painter,
+                rect,
+                &app.viewport,
+                &data.points,
+                &g.style,
+                formula_type,
+            );
+            // Для интегралов — закрашенная область
+            if !data.fill_points.is_empty() {
+                renderer::draw_filled_curve(
                     &painter,
                     rect,
                     &app.viewport,
-                    &data.points,
+                    &data.fill_points,
                     &g.style,
-                    formula_type,
                 );
-                // Для интегралов — закрашенная область
-                if !data.fill_points.is_empty() {
-                    renderer::draw_filled_curve(
-                        &painter,
-                        rect,
-                        &app.viewport,
-                        &data.fill_points,
-                        &g.style,
-                    );
-                }
             }
         }
     }
