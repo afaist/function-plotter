@@ -501,7 +501,7 @@ fn show_export_ui(app: &mut PlotApp, ctx: &Context, ui: &mut Ui, need_recompute:
             .save_file();
 
         if let Some(ref p) = path {
-            match save_png(ctx, app) {
+            match save_png(p, app) {
                 Ok(()) => {
                     app.status_msg = Some(StatusMessage::Info(format!(
                         "PNG сохранён: {}",
