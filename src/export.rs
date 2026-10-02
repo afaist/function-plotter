@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::Path;
 
-use egui::Context;
+use ab_glyph::{point, Font, PxScale, ScaleFont};
 use image::{self, Rgba, RgbaImage};
 
 use crate::app::PlotApp;
@@ -151,13 +151,7 @@ pub fn load_csv(path: &Path) -> Result<Vec<(f64, f64)>, String> {
 }
 
 /// Сохранение текущего вида канваса в PNG.
-pub fn save_png(_ctx: &Context, app: &PlotApp) -> Result<(), String> {
-    let path = rfd::FileDialog::new()
-        .set_file_name("plot.png")
-        .add_filter("PNG", &["png"])
-        .save_file()
-        .ok_or("Путь сохранения отменён")?;
-
+pub fn save_png(path: &Path, app: &PlotApp) -> Result<(), String> {
     // Размер выходного изображения
     let width = 1200u32;
     let height = 800u32;
@@ -320,7 +314,7 @@ pub fn save_png(_ctx: &Context, app: &PlotApp) -> Result<(), String> {
 
     // Рисуем координаты (метки делений)
     let text_color = Rgba([200, 200, 200, 255]);
-    let font = SimpleFont::new();
+    let font = load_font();
     
     // Метки по X
     for i in 0..=n_grid_x {
@@ -328,7 +322,7 @@ pub fn save_png(_ctx: &Context, app: &PlotApp) -> Result<(), String> {
         if x >= app.viewport.x_min && x <= app.viewport.x_max {
             let (sx, _) = math_to_screen(x, 0.0);
             let label = format_coord(x, nice_step_x);
-            font.render_text(&mut img, &label, (sx - 20.0) as i32, 780, text_color);
+            draw_text(&mut img, &font, &label, sx - 20.0, 780.0, text_color);
         }
     }
     
@@ -338,7 +332,7 @@ pub fn save_png(_ctx: &Context, app: &PlotApp) -> Result<(), String> {
         if y >= app.viewport.y_min && y <= app.viewport.y_max {
             let (_sx, sy) = math_to_screen(0.0, y);
             let label = format_coord(y, nice_step_y);
-            font.render_text(&mut img, &label, 5, (sy - 6.0) as i32, text_color);
+            draw_text(&mut img, &font, &label, 5.0, sy + 14.0, text_color);
         }
     }
 
@@ -348,75 +342,55 @@ pub fn save_png(_ctx: &Context, app: &PlotApp) -> Result<(), String> {
     Ok(())
 }
 
-/// Простой растровый шрифт 5x7 для экспорта PNG.
-struct SimpleFont {
-    /// Данные шрифта: для каждого ASCII-символа (32-126) — массив 5x7 бит
-    data: [Option<[u8; 7]>; 95],
+/// Рисуем текст на изображении с помощью ab_glyph.
+fn draw_text(img: &mut RgbaImage, font: &impl Font, text: &str, x: f32, y: f32, color: Rgba<u8>) {
+    let scale = PxScale::from(14.0); // 14pt шрифт
+    let scaled = font.as_scaled(scale);
+    let mut cx = x;
+    
+    for c in text.chars() {
+        let gid = scaled.glyph_id(c);
+        let positioned = gid.with_scale_and_position(scale, point(cx, y));
+        let outline = scaled.outline_glyph(positioned);
+        if let Some(glyph) = outline {
+            let bounds = glyph.px_bounds();
+            glyph.draw(|px, py, a| {
+                let sx = (px as f32 + bounds.min.x).round() as i32;
+                let sy = (py as f32 + bounds.min.y).round() as i32;
+                if sx >= 0 && sx < img.width() as i32 && sy >= 0 && sy < img.height() as i32 {
+                    let pixel = img.get_pixel_mut(sx as u32, sy as u32);
+                    let alpha = a as f32 / 255.0;
+                    pixel[0] = (color[0] as f32 * alpha + pixel[0] as f32 * (1.0 - alpha)).round() as u8;
+                    pixel[1] = (color[1] as f32 * alpha + pixel[1] as f32 * (1.0 - alpha)).round() as u8;
+                    pixel[2] = (color[2] as f32 * alpha + pixel[2] as f32 * (1.0 - alpha)).round() as u8;
+                    pixel[3] = 255;
+                }
+            });
+            cx += scaled.h_advance(gid);
+        }
+    }
 }
 
-impl SimpleFont {
-    fn new() -> Self {
-        // Простой моноширинный шрифт 5x7
-        // Каждая строка — байт, где биты = пиксели (0 = пусто, 1 = заполнено)
-        let mut data = [None; 95];
-        
-        // Заполняем простыми паттернами для цифр и основных символов
-        // '0' = 48, '1' = 49, и т.д.
-        data[48 - 32] = Some([0x00, 0x3E, 0x51, 0x49, 0x45, 0x3E, 0x00]); // 0
-        data[49 - 32] = Some([0x00, 0x00, 0x42, 0x7F, 0x40, 0x00, 0x00]); // 1
-        data[50 - 32] = Some([0x00, 0x42, 0x61, 0x51, 0x49, 0x46, 0x00]); // 2
-        data[51 - 32] = Some([0x00, 0x21, 0x41, 0x45, 0x4B, 0x31, 0x00]); // 3
-        data[52 - 32] = Some([0x00, 0x18, 0x14, 0x12, 0x7F, 0x10, 0x00]); // 4
-        data[53 - 32] = Some([0x00, 0x27, 0x45, 0x45, 0x45, 0x39, 0x00]); // 5
-        data[54 - 32] = Some([0x00, 0x3C, 0x4A, 0x49, 0x49, 0x30, 0x00]); // 6
-        data[55 - 32] = Some([0x00, 0x01, 0x71, 0x09, 0x05, 0x03, 0x00]); // 7
-        data[56 - 32] = Some([0x00, 0x36, 0x49, 0x49, 0x49, 0x36, 0x00]); // 8
-        data[57 - 32] = Some([0x00, 0x06, 0x49, 0x49, 0x29, 0x1E, 0x00]); // 9
-        data[45 - 32] = Some([0x00, 0x00, 0x00, 0x7F, 0x00, 0x00, 0x00]); // -
-        data[43 - 32] = Some([0x00, 0x00, 0x1C, 0x3E, 0x1C, 0x00, 0x00]); // +
-        data[47 - 32] = Some([0x00, 0x01, 0x06, 0x18, 0x30, 0x60, 0x00]); // /
-        data[46 - 32] = Some([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]); // . (пустой пока)
-        data[95 - 32] = Some([0x00, 0x00, 0x00, 0x7F, 0x00, 0x00, 0x00]); // _
-        
-        // Заполняем остальные символы заглушками
-        for i in 0..95 {
-            if data[i].is_none() {
-                data[i] = Some([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-            }
-        }
-        
-        Self { data }
-    }
-
-    /// Нарисовать текст на изображении.
-    fn render_text(&self, img: &mut RgbaImage, text: &str, start_x: i32, start_y: i32, color: Rgba<u8>) {
-        let mut x = start_x;
-        for c in text.chars() {
-            if c as u32 >= 32 && c as u32 <= 126 {
-                let idx = (c as u32 - 32) as usize;
-                if let Some(Some(row_data)) = self.data.get(idx).copied() {
-                    // Рисуем символ 5x7
-                    for row in 0..7 {
-                        let byte = row_data[row];
-                        for col in 0..5 {
-                            if byte & (1 << (4 - col)) != 0 {
-                                let px = x + col as i32;
-                                let py = start_y - row as i32;
-                                if px >= 0 && px < img.width() as i32 && py >= 0 && py < img.height() as i32 {
-                                    let pixel = img.get_pixel_mut(px as u32, py as u32);
-                                    pixel[0] = color[0];
-                                    pixel[1] = color[1];
-                                    pixel[2] = color[2];
-                                    pixel[3] = 255;
-                                }
-                            }
-                        }
-                    }
-                }
-                x += 7; // 5px + 2px gap
-            }
+/// Загрузить системный шрифт.
+fn load_font() -> ab_glyph::FontRef<'static> {
+    // Пробуем несколько системных шрифтов
+    const FONTS: &[&[u8]] = &[
+        include_bytes!("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+        include_bytes!("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"),
+        include_bytes!("/usr/share/fonts/truetype/freefont/FreeSans.ttf"),
+        include_bytes!("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf"),
+    ];
+    
+    for font_data in FONTS {
+        if let Ok(font) = ab_glyph::FontRef::try_from_slice(font_data) {
+            return font;
         }
     }
+    
+    // Если ни один шрифт не найден, используем встроенный моноширинный fallback
+    // Это простой моноширинный шрифт 14pt, закодированный в base64
+    // Для простоты используем DejaVuSans из пакета fonts-dejavu-core
+    panic!("Не найден системный шрифт для экспорта PNG. Установите один из: fonts-dejavu-core, fonts-liberation, fonts-freefont-ttf")
 }
 
 /// Выбрать количество знаков после запятой в зависимости от масштаба (шага сетки).
