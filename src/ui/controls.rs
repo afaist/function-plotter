@@ -398,7 +398,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
 }
 
 /// Панель экспорта/импорта (CSV, PNG).
-fn show_export_ui(app: &mut PlotApp, ctx: &Context, ui: &mut Ui, need_recompute: &mut bool) {
+fn show_export_ui(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui, need_recompute: &mut bool) {
     // Импорт CSV
     if ui.button("📥 Импорт CSV").clicked() {
         let path = export::open_csv_dialog();
