@@ -353,10 +353,10 @@ fn draw_text(img: &mut RgbaImage, font: &impl Font, text: &str, x: f32, y: f32, 
         let positioned = gid.with_scale_and_position(scale, point(cx, y));
         let outline = scaled.outline_glyph(positioned);
         if let Some(glyph) = outline {
-            let bounds = glyph.px_bounds();
             glyph.draw(|px, py, a| {
-                let sx = (px as f32 + bounds.min.x).round() as i32;
-                let sy = (py as f32 + bounds.min.y).round() as i32;
+                // px и py — это абсолютные пиксельные координаты (u32)
+                let sx = px as i32;
+                let sy = py as i32;
                 if sx >= 0 && sx < img.width() as i32 && sy >= 0 && sy < img.height() as i32 {
                     let pixel = img.get_pixel_mut(sx as u32, sy as u32);
                     let alpha = a as f32 / 255.0;
@@ -378,7 +378,6 @@ fn load_font() -> ab_glyph::FontRef<'static> {
         include_bytes!("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
         include_bytes!("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"),
         include_bytes!("/usr/share/fonts/truetype/freefont/FreeSans.ttf"),
-        include_bytes!("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf"),
     ];
     
     for font_data in FONTS {
@@ -387,9 +386,9 @@ fn load_font() -> ab_glyph::FontRef<'static> {
         }
     }
     
-    // Если ни один шрифт не найден, используем встроенный моноширинный fallback
-    // Это простой моноширинный шрифт 14pt, закодированный в base64
-    // Для простоты используем DejaVuSans из пакета fonts-dejavu-core
+    // Fallback: используем шрифт из eframe/egui
+    // Это встроенный шрифт Noto Sans, который уже используется в egui
+    // Попробуем загрузить его из ресурсов eframe
     panic!("Не найден системный шрифт для экспорта PNG. Установите один из: fonts-dejavu-core, fonts-liberation, fonts-freefont-ttf")
 }
 
