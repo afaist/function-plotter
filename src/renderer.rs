@@ -156,6 +156,66 @@ pub fn draw_filled_curve(
     ));
 }
 
+/// Отрисовка вершины параболы и корней.
+pub fn draw_special_points(
+    painter: &Painter,
+    rect: Rect,
+    viewport: &Viewport,
+    vertex: Option<(f64, f64)>,
+    roots: &[f64],
+    _style: &PlotStyle,
+) {
+    // Цвет для вершины — жёлтый
+    let vertex_color = Color32::from_rgb(255, 255, 100);
+    // Цвет для корней — зелёный
+    let root_color = Color32::from_rgb(100, 255, 100);
+    let radius = 5.0_f32;
+
+    // Рисуем вершину
+    if let Some((vx, vy)) = vertex {
+        if vx.is_finite() && vy.is_finite() {
+            let pos = viewport.math_to_screen(vx, vy, rect);
+            if rect.contains(pos) {
+                // Круг
+                painter.circle_filled(pos, radius, vertex_color);
+                // Обводка
+                painter.circle_stroke(pos, radius, Stroke::new(1.0, Color32::WHITE));
+                // Подпись
+                let text = format!("({:.2}; {:.2})", vx, vy);
+                painter.text(
+                    pos + Vec2::new(8.0, -8.0),
+                    egui::Align2::LEFT_TOP,
+                    text,
+                    egui::FontId::monospace(10.0),
+                    vertex_color,
+                );
+            }
+        }
+    }
+
+    // Рисуем корни
+    for root in roots {
+        if root.is_finite() {
+            let pos = viewport.math_to_screen(*root, 0.0, rect);
+            if rect.contains(pos) {
+                // Круг
+                painter.circle_filled(pos, radius, root_color);
+                // Обводка
+                painter.circle_stroke(pos, radius, Stroke::new(1.0, Color32::WHITE));
+                // Подпись
+                let text = format!("x={:.2}", root);
+                painter.text(
+                    pos + Vec2::new(8.0, 8.0),
+                    egui::Align2::LEFT_TOP,
+                    text,
+                    egui::FontId::monospace(10.0),
+                    root_color,
+                );
+            }
+        }
+    }
+}
+
 /// Отрисовка одного графика по точкам (с поддержкой производных — пунктиром).
 pub fn draw_curve_with_type(
     painter: &Painter,

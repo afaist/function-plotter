@@ -105,6 +105,22 @@ pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     // Точки пересечения
     draw_intersections(&painter, rect, &app.viewport, &app.graphs);
 
+    // Вершина и корни для каждого графика
+    for g in &app.graphs {
+        if g.style.visible {
+            if let Some(ref data) = g.data {
+                crate::renderer::draw_special_points(
+                    &painter,
+                    rect,
+                    &app.viewport,
+                    data.vertex,
+                    &data.roots,
+                    &g.style,
+                );
+            }
+        }
+    }
+
     // Координаты мыши
     draw_mouse_coords(ui, &painter, rect, &app.viewport);
 }

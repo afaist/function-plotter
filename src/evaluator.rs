@@ -16,6 +16,10 @@ pub struct PlotData {
     pub y_max: f64,
     /// Для интегралов — точки для закрашенной области.
     pub fill_points: Vec<(f64, f64)>,
+    /// Вершина параболы (x0, y0) — для квадратичных функций
+    pub vertex: Option<(f64, f64)>,
+    /// Корни уравнения (точки пересечения с осью X)
+    pub roots: Vec<f64>,
 }
 
 impl PlotData {
@@ -27,6 +31,8 @@ impl PlotData {
         let mut y_min = f64::INFINITY;
         let mut y_max = f64::NEG_INFINITY;
         let mut fill_points = Vec::new();
+        let mut vertex: Option<(f64, f64)> = None;
+        let mut roots = Vec::new();
 
         match formula.formula_type() {
             FormulaType::Derivative => {
@@ -142,11 +148,34 @@ impl PlotData {
             y_max = 1.0;
         }
 
+        // Вычисляем вершину и корни для квадратичных функций
+        if formula.formula_type() == FormulaType::Regular && !points.is_empty() {
+            // Ищем вершину и корни среди вычисленных точек
+            // Вершина — точка с минимальным y
+            if let Some((v_x, v_y)) = points.iter()
+                .filter(|(_, y)| y.is_finite())
+                .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+            {
+                vertex = Some((*v_x, *v_y));
+            }
+            
+            // Корни — точки где y близко к 0
+            for (x, y) in &points {
+                if y.is_finite() && y.abs() < 0.1 { // порог для "близости к нулю"
+                    if !roots.contains(x) {
+                        roots.push(*x);
+                    }
+                }
+            }
+        }
+
         PlotData {
             points,
             y_min,
             y_max,
             fill_points,
+            vertex,
+            roots,
         }
     }
 
@@ -227,6 +256,8 @@ impl PlotData {
             y_min,
             y_max,
             fill_points,
+            vertex: None,
+            roots: Vec::new(),
         }
     }
 
