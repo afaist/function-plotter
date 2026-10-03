@@ -130,6 +130,8 @@ impl GraphEntry {
                 y_min,
                 y_max,
                 fill_points: Vec::new(),
+                vertex: None,
+                roots: Vec::new(),
             });
         }
     }
@@ -401,6 +403,8 @@ pub struct PlotApp {
     pub graph_rect: Option<Rect>,
     /// Путь для сохранения скриншота
     pub save_path: Option<PathBuf>,
+    /// Школьная сетка 1:1 (клетка = 1 единица)
+    pub school_grid: bool,
 }
 
 impl Default for PlotApp {
@@ -441,6 +445,7 @@ impl Default for PlotApp {
             should_capture: false,
             graph_rect: None,
             save_path: None,
+            school_grid: false,
         };
         app.graphs.push(GraphEntry::new(
             "f1",

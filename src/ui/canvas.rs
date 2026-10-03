@@ -1,6 +1,6 @@
 //! Центральная область: холст для отрисовки графиков, pan/zoom, легенда.
 
-use egui::{pos2, Color32, Context, Rect, Sense, Ui, Vec2};
+use egui::{pos2, Color32, Context, Rect, Sense, Stroke, Ui, Vec2};
 
 use crate::app::PlotApp;
 use crate::renderer;
@@ -99,6 +99,11 @@ pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         }
     }
 
+    // Школьная сетка 1:1
+    if app.school_grid {
+        draw_school_grid(&painter, rect, &app.viewport);
+    }
+
     // Легенда
     draw_legend(&painter, rect, &app.graphs);
 
@@ -123,6 +128,63 @@ pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
 
     // Координаты мыши
     draw_mouse_coords(ui, &painter, rect, &app.viewport);
+}
+
+/// Отрисовка школьной сетки 1:1 (клетка = 1 единица).
+fn draw_school_grid(painter: &egui::Painter, rect: Rect, viewport: &crate::renderer::Viewport) {
+    let grid_color = Color32::from_rgba_unmultiplied(100, 100, 100, 80);
+    let stroke = Stroke::new(0.5_f32, grid_color);
+
+    // Определяем границы сетки
+    let x_min = viewport.x_min.floor() as i32;
+    let x_max = viewport.x_max.ceil() as i32;
+    let y_min = viewport.y_min.floor() as i32;
+    let y_max = viewport.y_max.ceil() as i32;
+
+    // Вертикальные линии
+    for x in x_min..=x_max {
+        let start = viewport.math_to_screen(x as f64, viewport.y_min, rect);
+        let end = viewport.math_to_screen(x as f64, viewport.y_max, rect);
+        painter.line_segment([start, end], stroke);
+    }
+
+    // Горизонтальные линии
+    for y in y_min..=y_max {
+        let start = viewport.math_to_screen(viewport.x_min, y as f64, rect);
+        let end = viewport.math_to_screen(viewport.x_max, y as f64, rect);
+        painter.line_segment([start, end], stroke);
+    }
+
+    // Подписи осей
+    let text_color = Color32::from_gray(180);
+    for x in x_min..=x_max {
+        if x % 5 == 0 && x != 0 {
+            let pos = viewport.math_to_screen(x as f64, 0.0, rect);
+            if rect.contains(pos) {
+                painter.text(
+                    pos + Vec2::new(2.0, 12.0),
+                    egui::Align2::LEFT_BOTTOM,
+                    format!("{}", x),
+                    egui::FontId::monospace(9.0),
+                    text_color,
+                );
+            }
+        }
+    }
+    for y in y_min..=y_max {
+        if y % 5 == 0 && y != 0 {
+            let pos = viewport.math_to_screen(0.0, y as f64, rect);
+            if rect.contains(pos) {
+                painter.text(
+                    pos + Vec2::new(-8.0, 4.0),
+                    egui::Align2::RIGHT_CENTER,
+                    format!("{}", y),
+                    egui::FontId::monospace(9.0),
+                    text_color,
+                );
+            }
+        }
+    }
 }
 
 /// Отрисовка легенды (список видимых графиков).

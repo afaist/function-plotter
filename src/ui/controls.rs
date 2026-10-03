@@ -290,6 +290,15 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         app.save_snapshot();
     }
 
+    ui.add_space(8.0);
+    ui.separator();
+    ui.add_space(4.0);
+
+    // Школьная сетка
+    if ui.checkbox(&mut app.school_grid, "Школьная сетка 1:1").changed() {
+        app.has_unsaved_changes = true;
+    }
+
     // Добавить график
     if ui.button("+ Добавить график").clicked() {
         let palette = [
