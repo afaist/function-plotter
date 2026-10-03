@@ -147,6 +147,11 @@ impl GraphEntry {
                 self.dirty = true;
             }
         }
+        
+        // Автоматически включаем слайдеры для квадратичных формул
+        if self.use_sliders && self.is_quadratic() {
+            self.extract_quadratic_coeffs();
+        }
     }
 
     /// Восстановить формулу из слайдеров (a*x^2 + b*x + c).
@@ -202,21 +207,37 @@ impl GraphEntry {
 
     /// Проверить, является ли формула квадратичной: a*x^2 + b*x + c
     pub fn is_quadratic(&self) -> bool {
-        if self.parsed.is_none() {
+        if self.parsed.is_none() || self.raw_data.is_some() {
             return false;
         }
         let text = self.formula_text.trim().to_lowercase();
-        // Проверяем наличие x^2 и отсутствие других степеней x
-        if !text.contains("x^2") && !text.contains("x²") {
+        
+        // Должна содержать x^2
+        if !text.contains("x^2") {
             return false;
         }
-        // Должна быть только одна переменная x, степени <= 2
-        // Простая проверка: нет x^3, x^4 и т.д.
+        
+        // Не должна содержать x^3 и выше
         if text.contains("x^3") || text.contains("x^4") || text.contains("x^5") {
             return false;
         }
-        // Нет других функций от x (кроме линейных комбинаций)
-        // Это упрощённая проверка — в реальности нужен парсер
+        
+        // Не должна содержать других функций от x (sin, cos, tan, sqrt, abs, log, exp)
+        // кроме констант и арифметики
+        let forbidden = ["sin(", "cos(", "tan(", "sqrt(", "abs(", "log(", "exp(", "deriv(", "integral("];
+        for f in &forbidden {
+            if text.contains(f) {
+                return false;
+            }
+        }
+        
+        // Не должна содержать других переменных кроме x
+        let without_x = text.replace('x', "");
+        let without_ops = without_x.replace(|c: char| matches!(c, '+' | '-' | '*' | '/' | '.' | '^' | '0'..='9' | ' '), "");
+        if !without_ops.is_empty() {
+            return false;
+        }
+        
         true
     }
 
@@ -229,37 +250,74 @@ impl GraphEntry {
         let text = self.formula_text.trim().to_lowercase();
         
         // Парсим a (коэффициент при x^2)
-        let a = if text.contains("x^2") {
-            if text.starts_with("-x^2") {
-                -1.0
-            } else if text.starts_with("x^2") {
-                1.0
-            } else if let Some(prefix) = text.strip_prefix("-") {
-                if let Some(rest) = prefix.strip_prefix("x^2") {
-                    if rest.is_empty() || rest.starts_with('+') {
-                        -1.0
-                    } else if let Some(num_str) = rest.split_once('*').map(|(n, _)| n) {
-                        num_str.parse::<f64>().unwrap_or(1.0) * -1.0
-                    } else {
-                        -1.0
-                    }
-                } else {
-                    1.0
-                }
-            } else if let Some(num_str) = text.split_once('*').map(|(n, _)| n) {
-                num_str.parse::<f64>().unwrap_or(1.0)
+        let a = if text.starts_with("-x^2") {
+            -1.0
+        } else if text.starts_with("x^2") {
+            1.0
+        } else if let Some(rest) = text.strip_prefix('-') {
+            if let Some(num_str) = rest.split_once('*').map(|(n, _)| n) {
+                num_str.parse::<f64>().unwrap_or(1.0) * -1.0
             } else {
-                1.0
+                -1.0
             }
+        } else if let Some(num_str) = text.split_once('*').map(|(n, _)| n) {
+            num_str.parse::<f64>().unwrap_or(1.0)
         } else {
-            return false;
+            1.0
         };
         
-        // Для простоты устанавливаем начальные значения
-        // Полное парсинг требует более сложной логики
+        // Парсим b (коэффициент при x) — ищем + b*x или - b*x после x^2
+        let b = {
+            let after_x2 = &text[text.find("x^2").unwrap_or(text.len()) + 3..];
+            let after_x2 = after_x2.trim_start();
+            
+            if let Some(rest) = after_x2.strip_prefix('+') {
+                let rest = rest.trim_start();
+                if let Some(num_str) = rest.split_once('*').map(|(n, _)| n) {
+                    num_str.parse::<f64>().unwrap_or(1.0)
+                } else if rest.starts_with("x") {
+                    1.0
+                } else {
+                    0.0
+                }
+            } else if let Some(rest) = after_x2.strip_prefix('-') {
+                let rest = rest.trim_start();
+                if let Some(num_str) = rest.split_once('*').map(|(n, _)| n) {
+                    -(num_str.parse::<f64>().unwrap_or(1.0))
+                } else if rest.starts_with("x") {
+                    -1.0
+                } else {
+                    0.0
+                }
+            } else {
+                0.0
+            }
+        };
+        
+        // Парсим c (свободный член) — число после последнего + или -
+        let c = {
+            let text = text.trim();
+            let mut result = 0.0;
+            
+            // Ищем последнее число (не связанное с x)
+            if let Some(last_plus) = text.rfind(" + ") {
+                let num_str = &text[last_plus + 3..];
+                if let Ok(val) = num_str.parse::<f64>() {
+                    result = val;
+                }
+            } else if let Some(last_minus) = text.rfind(" - ") {
+                let num_str = &text[last_minus + 3..];
+                if let Ok(val) = num_str.parse::<f64>() {
+                    result = -val;
+                }
+            }
+            
+            result
+        };
+        
         self.slider_a = a;
-        self.slider_b = 0.0;
-        self.slider_c = 0.0;
+        self.slider_b = b;
+        self.slider_c = c;
         self.use_sliders = true;
         
         true

@@ -30,6 +30,7 @@ fn render_graph_entry(
     slider_a: &mut f64,
     slider_b: &mut f64,
     slider_c: &mut f64,
+    need_auto_extract: &mut bool,
 ) -> bool {
     let mut changed = false;
     
@@ -64,13 +65,13 @@ fn render_graph_entry(
     // Кнопка включения/выключения слайдеров
     if !has_raw_data {
         ui.horizontal(|ui| {
-            if ui.checkbox(use_sliders, "Слайдеры a,b,c").changed() {
+            if ui.checkbox(use_sliders, "Слайдеры").changed() {
                 changed = true;
             }
             if *use_sliders {
                 ui.add_space(8.0);
                 if ui.button("Авто").clicked() {
-                    // Автоматически извлечь коэффициенты (упрощённо)
+                    *need_auto_extract = true;
                     changed = true;
                 }
             }
@@ -198,6 +199,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         let mut slider_a = app.graphs[i].slider_a;
         let mut slider_b = app.graphs[i].slider_b;
         let mut slider_c = app.graphs[i].slider_c;
+        let mut need_auto_extract = false;
 
         let mut changed = false;
         ui.push_id(i, |ui| {
@@ -225,6 +227,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                         &mut slider_a,
                         &mut slider_b,
                         &mut slider_c,
+                        &mut need_auto_extract,
                     );
                 });
             } else {
@@ -245,6 +248,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                     &mut slider_a,
                     &mut slider_b,
                     &mut slider_c,
+                    &mut need_auto_extract,
                 );
             }
         });
@@ -257,6 +261,12 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
             g.slider_a = slider_a;
             g.slider_b = slider_b;
             g.slider_c = slider_c;
+            
+            // Если нажата кнопка "Авто" — извлекаем коэффициенты
+            if need_auto_extract {
+                g.extract_quadratic_coeffs();
+                changed = true;
+            }
             
             // Если слайдеры включены и значения изменились — применяем формулу
             if use_sliders && changed {
