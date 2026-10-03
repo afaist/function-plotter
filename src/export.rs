@@ -3,6 +3,7 @@ use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::Path;
 
 use ab_glyph::{point, Font, PxScale, ScaleFont};
+use egui::Rect;
 use image::{self, Rgba, RgbaImage};
 
 use crate::app::PlotApp;
@@ -407,6 +408,45 @@ fn format_coord(val: f64, step: f64) -> String {
     } else {
         format!("{val:.1}")
     }
+}
+
+/// Обрезать область скриншота и сохранить в PNG.
+pub fn save_rect_to_png(
+    screenshot: &egui::ColorImage,
+    rect: Rect,
+    path: &std::path::Path,
+) -> Result<(), String> {
+    let width = screenshot.width() as f32;
+    let height = screenshot.height() as f32;
+
+    // Переводим логические координаты egui в пиксели изображения
+    let x = (rect.min.x.clamp(0.0, width)) as usize;
+    let y = (rect.min.y.clamp(0.0, height)) as usize;
+    let w = rect.width().min(width - rect.min.x) as usize;
+    let h = rect.height().min(height - rect.min.y) as usize;
+
+    if w == 0 || h == 0 {
+        return Err("Область для сохранения пуста".into());
+    }
+
+    // Конвертируем ColorImage (RGBA) из egui в буфер для image
+    let mut pixels = Vec::with_capacity(w * h * 4);
+    for row in y..(y + h) {
+        for col in x..(x + w) {
+            let color = screenshot.pixels[row * screenshot.width() + col];
+            pixels.extend_from_slice(&color.to_array());
+        }
+    }
+
+    // Сохраняем область в файл
+    if let Some(buffer) = image::ImageBuffer::<Rgba<u8>, _>::from_raw(w as u32, h as u32, pixels) {
+        buffer.save(path).map_err(|e| format!("Сохранение PNG: {e}"))?;
+        println!("График сохранён в {}", path.display());
+    } else {
+        return Err("Не удалось создать изображение".into());
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

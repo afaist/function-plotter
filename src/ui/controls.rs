@@ -7,7 +7,7 @@ use egui::{Color32, Context, ScrollArea, Ui};
 use crate::app::{GraphEntry, PlotApp, StatusMessage};
 use crate::config;
 use crate::export;
-use crate::export::{save_dialog, save_png};
+use crate::export::{save_dialog};
 use crate::parser::ParsedFormula;
 use crate::renderer::Viewport;
 
@@ -398,7 +398,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
 }
 
 /// Панель экспорта/импорта (CSV, PNG).
-fn show_export_ui(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui, need_recompute: &mut bool) {
+fn show_export_ui(app: &mut PlotApp, ctx: &Context, ui: &mut Ui, need_recompute: &mut bool) {
     // Импорт CSV
     if ui.button("📥 Импорт CSV").clicked() {
         let path = export::open_csv_dialog();
@@ -501,19 +501,9 @@ fn show_export_ui(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui, need_recompute
             .save_file();
 
         if let Some(ref p) = path {
-            match save_png(p, app) {
-                Ok(()) => {
-                    app.status_msg = Some(StatusMessage::Info(format!(
-                        "PNG сохранён: {}",
-                        p.display()
-                    )));
-                    app.status_time = Some(Instant::now());
-                }
-                Err(e) => {
-                    app.status_msg = Some(StatusMessage::Error(format!("Ошибка PNG: {e}")));
-                    app.status_time = Some(Instant::now());
-                }
-            }
+            app.save_path = Some(p.clone());
+            app.should_capture = true;
+            ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData { data: None }));
         }
     }
 }

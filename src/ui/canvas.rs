@@ -27,6 +27,8 @@ pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         }
     }
     app._last_canvas_rect = Some(rect);
+    // Сохраняем координаты холста для скриншота
+    app.graph_rect = Some(rect);
 
     // Масштабирование (колесо мыши)
     if let Some(pos) = response.hover_pos() {

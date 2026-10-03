@@ -5,6 +5,7 @@ use egui::{Color32, Pos2, Rect};
 
 use crate::config;
 use crate::evaluator::PlotData;
+use crate::export::save_rect_to_png;
 use crate::parser::{self, ParsedFormula};
 use crate::renderer::{PlotStyle, Viewport};
 use crate::session;
@@ -204,6 +205,12 @@ pub struct PlotApp {
     pub _last_canvas_rect: Option<Rect>,
     /// Размер окна для сохранения
     pub window_size: [f32; 2],
+    /// Флаг: сделать скриншот
+    pub should_capture: bool,
+    /// Координаты холста для обрезки скриншота
+    pub graph_rect: Option<Rect>,
+    /// Путь для сохранения скриншота
+    pub save_path: Option<PathBuf>,
 }
 
 impl Default for PlotApp {
@@ -241,6 +248,9 @@ impl Default for PlotApp {
             max_history: 50,
             _last_canvas_rect: None,
             window_size: [1000.0, 700.0],
+            should_capture: false,
+            graph_rect: None,
+            save_path: None,
         };
         app.graphs.push(GraphEntry::new(
             "f1",
@@ -830,6 +840,30 @@ impl eframe::App for PlotApp {
 
                 render_values_table_ui(ui, &mut self.values_table_steps, x_min, x_max, table_data.as_ref(), &graph_label);
             });
+
+        // --- Обработка скриншота ---
+        if self.should_capture {
+            let screenshot = ctx.input(|i| {
+                i.raw.events.iter().find_map(|event| {
+                    if let egui::Event::Screenshot { image, .. } = event {
+                        Some(image.clone())
+                    } else {
+                        None
+                    }
+                })
+            });
+            if let Some(screenshot) = screenshot {
+                self.should_capture = false;
+                
+                if let (Some(rect), Some(ref save_path)) = (self.graph_rect, &self.save_path) {
+                    if let Err(e) = save_rect_to_png(&screenshot, rect, save_path) {
+                        self.status_msg = Some(StatusMessage::Error(format!("Ошибка PNG: {e}")));
+                        self.status_time = Some(Instant::now());
+                    }
+                }
+                self.save_path = None;
+            }
+        }
     }
 }
 
