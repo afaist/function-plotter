@@ -58,6 +58,8 @@ pub struct GraphEntry {
     pub slider_a: f64,
     pub slider_b: f64,
     pub slider_c: f64,
+    /// Флаг: пользователь редактирует формулу (для авто-скрытия графика)
+    pub is_editing: bool,
 }
 
 impl GraphEntry {
@@ -78,6 +80,7 @@ impl GraphEntry {
             slider_a: 1.0,
             slider_b: 0.0,
             slider_c: 0.0,
+            is_editing: false,
         };
         entry.reparse();
         entry
@@ -101,6 +104,7 @@ impl GraphEntry {
             slider_a: 1.0,
             slider_b: 0.0,
             slider_c: 0.0,
+            is_editing: false,
         };
         entry.recompute_from_raw();
         entry

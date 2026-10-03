@@ -17,7 +17,7 @@ fn render_graph_entry(
     ui: &mut Ui,
     i: usize,
     color: Color32,
-    label: &str,
+    _label: &str,
     visible: &mut bool,
     formula: &mut String,
     parse_error: &Option<String>,
@@ -31,18 +31,23 @@ fn render_graph_entry(
     slider_b: &mut f64,
     slider_c: &mut f64,
     need_auto_extract: &mut bool,
-    need_reparse: &mut bool,
+    is_editing: &mut bool,
 ) -> bool {
     let mut changed = false;
     
-    // Верхняя строка: цвет + чекбокс + кнопка удаления
+    // Верхняя строка: цвет + кнопка видимости + кнопка удаления
     ui.horizontal(|ui| {
         // Цветной индикатор побольше
         let (rect, _resp) = ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
         ui.painter().rect_filled(rect, 3.0, color);
-        if ui.checkbox(visible, label.to_string()).changed() {
+        
+        // Кнопка видимости — «глаз»
+        let eye_icon = if *visible { "👁" } else { "🚫" };
+        if ui.button(eye_icon).clicked() {
+            *visible = !*visible;
             changed = true;
         }
+        
         if ui.button("✕").clicked() {
             *need_remove = Some(i);
             changed = true;
@@ -62,6 +67,24 @@ fn render_graph_entry(
     // Строка формулы — клик выделяет график
     let text_edit = egui::TextEdit::singleline(formula).desired_width(f32::INFINITY);
     let text_output = text_edit.show(ui);
+    
+    // Логика авто-скрытия при редактировании формулы
+    if !has_raw_data {
+        // При получении фокуса — скрываем график
+        if text_output.response.gained_focus() && !*is_editing {
+            *visible = false;
+            *is_editing = true;
+            changed = true;
+        }
+        
+        // При потере фокуса — пересчитываем и показываем
+        if text_output.response.lost_focus() && *is_editing {
+            *need_recompute = true;
+            *visible = true; // показываем после редактирования
+            *is_editing = false;
+            changed = true;
+        }
+    }
     
     // Кнопка включения/выключения слайдеров
     if !has_raw_data {
@@ -97,11 +120,6 @@ fn render_graph_entry(
         }
     }
 
-    if text_output.response.lost_focus() {
-        *need_recompute = true;
-        *need_reparse = true;
-        changed = true;
-    }
     ui.add_space(4.0);
     
     // Слайдеры для квадратичной функции
@@ -185,6 +203,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
 
     // Список графиков
     let mut any_changed = false;
+    let mut any_reparse = false;
     // Предварительно вычисляем типы формул для всех графиков (чтобы избежать borrow conflicts)
     let formula_types: Vec<Option<(Color32, String, String)>> = app.graphs.iter().map(|g| {
         g.formula_type_info().map(|(c, _icon, l)| (c, l.to_string(), l.to_string()))
@@ -196,13 +215,14 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         let label = app.graphs[i].style.label.clone();
         let mut visible = app.graphs[i].style.visible;
         let mut formula = app.graphs[i].formula_text.clone();
+        let old_formula = app.graphs[i].formula_text.clone(); // сохраняем предыдущее значение
         let parse_error = app.graphs[i].parse_error.clone();
         let mut use_sliders = app.graphs[i].use_sliders;
         let mut slider_a = app.graphs[i].slider_a;
         let mut slider_b = app.graphs[i].slider_b;
         let mut slider_c = app.graphs[i].slider_c;
         let mut need_auto_extract = false;
-        let mut need_reparse = false;
+        let mut is_editing = app.graphs[i].is_editing;
 
         let mut changed = false;
         ui.push_id(i, |ui| {
@@ -231,7 +251,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                         &mut slider_b,
                         &mut slider_c,
                         &mut need_auto_extract,
-                        &mut need_reparse,
+                        &mut is_editing,
                     );
                 });
             } else {
@@ -253,7 +273,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                     &mut slider_b,
                     &mut slider_c,
                     &mut need_auto_extract,
-                    &mut need_reparse,
+                    &mut is_editing,
                 );
             }
         });
@@ -261,11 +281,12 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         // Применяем изменения
         if let Some(g) = app.graphs.get_mut(i) {
             g.style.visible = visible;
-            g.style.label = label;
+            g.style.label = label.clone();
             g.use_sliders = use_sliders;
             g.slider_a = slider_a;
             g.slider_b = slider_b;
             g.slider_c = slider_c;
+            g.is_editing = is_editing;
             
             // Если нажата кнопка "Авто" — извлекаем коэффициенты
             if need_auto_extract {
@@ -279,12 +300,11 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
             } else if g.raw_data.is_none() {
                 // Иначе применяем формулу из текстового поля
                 let new_formula = formula.clone();
-                if new_formula != g.formula_text {
-                    g.formula_text = new_formula;
-                    // Вызываем reparse только при потере фокуса
-                    if need_reparse {
-                        g.reparse();
-                    }
+                if new_formula != old_formula {
+                    g.formula_text = new_formula.clone();
+                    // Если формула изменилась — пересчитываем
+                    g.reparse();
+                    any_reparse = true;
                 }
             }
         }
@@ -294,6 +314,11 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
             need_save_snapshot = true;
             any_changed = true;
         }
+    }
+
+    // Если был reparse — пересчитываем графики
+    if any_reparse {
+        app.recompute_all();
     }
 
     // Сохраняем снимок после применения изменений к графикам
