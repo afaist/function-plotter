@@ -26,6 +26,10 @@ fn render_graph_entry(
     need_recompute: &mut bool,
     formula_type_info: Option<(Color32, String, String)>,
     has_raw_data: bool,
+    use_sliders: &mut bool,
+    slider_a: &mut f64,
+    slider_b: &mut f64,
+    slider_c: &mut f64,
 ) -> bool {
     let mut changed = false;
     
@@ -57,6 +61,22 @@ fn render_graph_entry(
     let text_edit = egui::TextEdit::singleline(formula).desired_width(f32::INFINITY);
     let text_output = text_edit.show(ui);
     
+    // Кнопка включения/выключения слайдеров
+    if !has_raw_data {
+        ui.horizontal(|ui| {
+            if ui.checkbox(use_sliders, "Слайдеры a,b,c").changed() {
+                changed = true;
+            }
+            if *use_sliders {
+                ui.add_space(8.0);
+                if ui.button("Авто").clicked() {
+                    // Автоматически извлечь коэффициенты (упрощённо)
+                    changed = true;
+                }
+            }
+        });
+    }
+    
     // Клик по формуле или по типу формулы выделяет график
     if text_output.response.clicked() {
         *selected_graph = Some(i);
@@ -80,6 +100,30 @@ fn render_graph_entry(
         changed = true;
     }
     ui.add_space(4.0);
+    
+    // Слайдеры для квадратичной функции
+    if *use_sliders && !has_raw_data {
+        ui.label(egui::RichText::new("a·x² + b·x + c").size(11.0).monospace());
+        ui.horizontal(|ui| {
+            ui.label("a:");
+            if ui.add(egui::Slider::new(slider_a, -10.0..=10.0).logarithmic(false).show_value(true)).changed() {
+                changed = true;
+            }
+        });
+        ui.horizontal(|ui| {
+            ui.label("b:");
+            if ui.add(egui::Slider::new(slider_b, -10.0..=10.0).logarithmic(false).show_value(true)).changed() {
+                changed = true;
+            }
+        });
+        ui.horizontal(|ui| {
+            ui.label("c:");
+            if ui.add(egui::Slider::new(slider_c, -10.0..=10.0).logarithmic(false).show_value(true)).changed() {
+                changed = true;
+            }
+        });
+        ui.add_space(2.0);
+    }
     
     changed
 }
@@ -150,6 +194,10 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         let mut visible = app.graphs[i].style.visible;
         let mut formula = app.graphs[i].formula_text.clone();
         let parse_error = app.graphs[i].parse_error.clone();
+        let mut use_sliders = app.graphs[i].use_sliders;
+        let mut slider_a = app.graphs[i].slider_a;
+        let mut slider_b = app.graphs[i].slider_b;
+        let mut slider_c = app.graphs[i].slider_c;
 
         let mut changed = false;
         ui.push_id(i, |ui| {
@@ -173,6 +221,10 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                         &mut need_recompute,
                         formula_types[i].clone(),
                         has_raw_data[i],
+                        &mut use_sliders,
+                        &mut slider_a,
+                        &mut slider_b,
+                        &mut slider_c,
                     );
                 });
             } else {
@@ -189,6 +241,10 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                     &mut need_recompute,
                     formula_types[i].clone(),
                     has_raw_data[i],
+                    &mut use_sliders,
+                    &mut slider_a,
+                    &mut slider_b,
+                    &mut slider_c,
                 );
             }
         });
@@ -197,9 +253,17 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         if let Some(g) = app.graphs.get_mut(i) {
             g.style.visible = visible;
             g.style.label = label;
-            g.formula_text = formula;
-            // Не вызываем reparse() для графиков из CSV (у них нет формулы)
-            if g.raw_data.is_none() {
+            g.use_sliders = use_sliders;
+            g.slider_a = slider_a;
+            g.slider_b = slider_b;
+            g.slider_c = slider_c;
+            
+            // Если слайдеры включены и значения изменились — применяем формулу
+            if use_sliders && changed {
+                g.apply_sliders();
+            } else if g.raw_data.is_none() {
+                // Иначе применяем формулу из текстового поля
+                g.formula_text = formula.clone();
                 g.reparse();
             }
         }

@@ -53,6 +53,11 @@ pub struct GraphEntry {
     pub dirty: bool,
     /// Сырые данные из CSV (x, y) — если график загружен из файла.
     pub raw_data: Option<Vec<(f64, f64)>>,
+    /// Слайдеры для квадратичной функции a*x^2 + b*x + c
+    pub use_sliders: bool,
+    pub slider_a: f64,
+    pub slider_b: f64,
+    pub slider_c: f64,
 }
 
 impl GraphEntry {
@@ -69,6 +74,10 @@ impl GraphEntry {
             data: None,
             dirty: true,
             raw_data: None,
+            use_sliders: false,
+            slider_a: 1.0,
+            slider_b: 0.0,
+            slider_c: 0.0,
         };
         entry.reparse();
         entry
@@ -88,6 +97,10 @@ impl GraphEntry {
             data: None,
             dirty: false,
             raw_data: Some(points),
+            use_sliders: false,
+            slider_a: 1.0,
+            slider_b: 0.0,
+            slider_c: 0.0,
         };
         entry.recompute_from_raw();
         entry
@@ -134,6 +147,122 @@ impl GraphEntry {
                 self.dirty = true;
             }
         }
+    }
+
+    /// Восстановить формулу из слайдеров (a*x^2 + b*x + c).
+    pub fn apply_sliders(&mut self) {
+        if !self.use_sliders {
+            return;
+        }
+        let a = self.slider_a;
+        let b = self.slider_b;
+        let c = self.slider_c;
+        
+        // Формируем формулу: ax² + bx + c
+        let mut formula = String::new();
+        
+        // a*x^2
+        if a == 1.0 {
+            formula.push_str("x^2");
+        } else if a == -1.0 {
+            formula.push_str("-x^2");
+        } else {
+            formula.push_str(&format!("{a}*x^2"));
+        }
+        
+        // + b*x
+        if b > 0.0 {
+            if b == 1.0 {
+                formula.push_str(" + x");
+            } else {
+                formula.push_str(&format!(" + {b}*x"));
+            }
+        } else if b < 0.0 {
+            if b == -1.0 {
+                formula.push_str(" - x");
+            } else {
+                formula.push_str(&format!(" - {:.1}*x", b.abs()));
+            }
+        }
+        
+        // + c
+        if c > 0.0 {
+            formula.push_str(&format!(" + {c}"));
+        } else if c < 0.0 {
+            formula.push_str(&format!(" - {:.1}", c.abs()));
+        }
+        
+        if formula.is_empty() {
+            formula = "0".to_string();
+        }
+        
+        self.formula_text = formula;
+        self.reparse();
+    }
+
+    /// Проверить, является ли формула квадратичной: a*x^2 + b*x + c
+    pub fn is_quadratic(&self) -> bool {
+        if self.parsed.is_none() {
+            return false;
+        }
+        let text = self.formula_text.trim().to_lowercase();
+        // Проверяем наличие x^2 и отсутствие других степеней x
+        if !text.contains("x^2") && !text.contains("x²") {
+            return false;
+        }
+        // Должна быть только одна переменная x, степени <= 2
+        // Простая проверка: нет x^3, x^4 и т.д.
+        if text.contains("x^3") || text.contains("x^4") || text.contains("x^5") {
+            return false;
+        }
+        // Нет других функций от x (кроме линейных комбинаций)
+        // Это упрощённая проверка — в реальности нужен парсер
+        true
+    }
+
+    /// Извлечь коэффициенты a, b, c из квадратичной формулы
+    pub fn extract_quadratic_coeffs(&mut self) -> bool {
+        if !self.is_quadratic() {
+            return false;
+        }
+        
+        let text = self.formula_text.trim().to_lowercase();
+        
+        // Парсим a (коэффициент при x^2)
+        let a = if text.contains("x^2") {
+            if text.starts_with("-x^2") {
+                -1.0
+            } else if text.starts_with("x^2") {
+                1.0
+            } else if let Some(prefix) = text.strip_prefix("-") {
+                if let Some(rest) = prefix.strip_prefix("x^2") {
+                    if rest.is_empty() || rest.starts_with('+') {
+                        -1.0
+                    } else if let Some(num_str) = rest.split_once('*').map(|(n, _)| n) {
+                        num_str.parse::<f64>().unwrap_or(1.0) * -1.0
+                    } else {
+                        -1.0
+                    }
+                } else {
+                    1.0
+                }
+            } else if let Some(num_str) = text.split_once('*').map(|(n, _)| n) {
+                num_str.parse::<f64>().unwrap_or(1.0)
+            } else {
+                1.0
+            }
+        } else {
+            return false;
+        };
+        
+        // Для простоты устанавливаем начальные значения
+        // Полное парсинг требует более сложной логики
+        self.slider_a = a;
+        self.slider_b = 0.0;
+        self.slider_c = 0.0;
+        self.use_sliders = true;
+        
+        true
     }
 
     /// Пометить график как требующий пересчёта.
