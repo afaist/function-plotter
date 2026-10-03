@@ -527,6 +527,16 @@ pub fn render_help_content(ui: &mut Ui) {
         ui.label("Сохранить сессию");
     });
     ui.horizontal(|ui| {
+        ui.label("Ctrl+Z");
+        ui.separator();
+        ui.label("Отменить");
+    });
+    ui.horizontal(|ui| {
+        ui.label("Ctrl+Shift+Z / Ctrl+Y");
+        ui.separator();
+        ui.label("Повторить");
+    });
+    ui.horizontal(|ui| {
         ui.label("Delete");
         ui.separator();
         ui.label("Удалить выбранный график");
