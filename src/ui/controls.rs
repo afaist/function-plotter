@@ -31,6 +31,7 @@ fn render_graph_entry(
     slider_b: &mut f64,
     slider_c: &mut f64,
     need_auto_extract: &mut bool,
+    need_reparse: &mut bool,
 ) -> bool {
     let mut changed = false;
     
@@ -98,6 +99,7 @@ fn render_graph_entry(
 
     if text_output.response.lost_focus() {
         *need_recompute = true;
+        *need_reparse = true;
         changed = true;
     }
     ui.add_space(4.0);
@@ -200,6 +202,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         let mut slider_b = app.graphs[i].slider_b;
         let mut slider_c = app.graphs[i].slider_c;
         let mut need_auto_extract = false;
+        let mut need_reparse = false;
 
         let mut changed = false;
         ui.push_id(i, |ui| {
@@ -228,6 +231,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                         &mut slider_b,
                         &mut slider_c,
                         &mut need_auto_extract,
+                        &mut need_reparse,
                     );
                 });
             } else {
@@ -249,6 +253,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                     &mut slider_b,
                     &mut slider_c,
                     &mut need_auto_extract,
+                    &mut need_reparse,
                 );
             }
         });
@@ -276,7 +281,10 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                 let new_formula = formula.clone();
                 if new_formula != g.formula_text {
                     g.formula_text = new_formula;
-                    g.reparse();
+                    // Вызываем reparse только при потере фокуса
+                    if need_reparse {
+                        g.reparse();
+                    }
                 }
             }
         }
