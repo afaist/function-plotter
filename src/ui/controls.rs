@@ -273,8 +273,11 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                 g.apply_sliders();
             } else if g.raw_data.is_none() {
                 // Иначе применяем формулу из текстового поля
-                g.formula_text = formula.clone();
-                g.reparse();
+                let new_formula = formula.clone();
+                if new_formula != g.formula_text {
+                    g.formula_text = new_formula;
+                    g.reparse();
+                }
             }
         }
         // Сохраняем снимок при изменении формулы или видимости
