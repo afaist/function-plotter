@@ -159,12 +159,30 @@ impl PlotData {
                 vertex = Some((*v_x, *v_y));
             }
             
-            // Корни — точки где y близко к 0
-            for (x, y) in &points {
-                if y.is_finite() && y.abs() < 0.1 { // порог для "близости к нулю"
-                    if !roots.contains(x) {
-                        roots.push(*x);
+            // Корни — ищем смену знака между соседними точками (метод бисекции)
+            let mut last_root_x: Option<f64> = None;
+            for i in 0..points.len().saturating_sub(1) {
+                let (x1, y1) = points[i];
+                let (x2, y2) = points[i + 1];
+                
+                if !y1.is_finite() || !y2.is_finite() {
+                    continue;
+                }
+                
+                // Смена знака — корень между x1 и x2
+                if (y1 <= 0.0 && y2 > 0.0) || (y1 > 0.0 && y2 <= 0.0) {
+                    // Линейная интерполяция для точного значения
+                    let root_x = x1 - y1 * (x2 - x1) / (y2 - y1);
+                    
+                    // Проверяем, чтобы не добавлять дубликаты (корни дальше 0.5 по x)
+                    if let Some(last) = last_root_x {
+                        if (root_x - last).abs() < 0.5 {
+                            continue;
+                        }
                     }
+                    
+                    last_root_x = Some(root_x);
+                    roots.push(root_x);
                 }
             }
         }
