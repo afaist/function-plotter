@@ -155,6 +155,57 @@ pub fn all_templates() -> &'static [FunctionTemplate] {
             formula: "parametric(3*cos(t), 2*sin(t), 0, 2*pi)",
             category: "Параметрические",
         },
+        // ОГЭ — типовые функции
+        FunctionTemplate {
+            name: "Прямая: k*x + b",
+            formula: "2*x + 1",
+            category: "ОГЭ",
+        },
+        FunctionTemplate {
+            name: "Парабола: x^2",
+            formula: "x^2",
+            category: "ОГЭ",
+        },
+        FunctionTemplate {
+            name: "Парабола: 2*x^2 + 3*x - 5",
+            formula: "2*x^2 + 3*x - 5",
+            category: "ОГЭ",
+        },
+        FunctionTemplate {
+            name: "Гипербола: k/x",
+            formula: "6/x",
+            category: "ОГЭ",
+        },
+        FunctionTemplate {
+            name: "Корень: sqrt(x)",
+            formula: "sqrt(x)",
+            category: "ОГЭ",
+        },
+        FunctionTemplate {
+            name: "Модуль: abs(x)",
+            formula: "abs(x)",
+            category: "ОГЭ",
+        },
+        FunctionTemplate {
+            name: "Куб: x^3",
+            formula: "x^3",
+            category: "ОГЭ",
+        },
+        FunctionTemplate {
+            name: "x^2 - 4 (корни ±2)",
+            formula: "x^2 - 4",
+            category: "ОГЭ",
+        },
+        FunctionTemplate {
+            name: "-x^2 + 4 (вершина (0;4))",
+            formula: "-x^2 + 4",
+            category: "ОГЭ",
+        },
+        FunctionTemplate {
+            name: "x^2 - 2*x + 1",
+            formula: "x^2 - 2*x + 1",
+            category: "ОГЭ",
+        },
     ]
 }
 
