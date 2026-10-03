@@ -35,6 +35,7 @@ impl StatusMessage {
 
 /// Точка пересечения двух графиков.
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub struct IntersectionPoint {
     pub x: f64,
     pub y: f64,
@@ -136,6 +137,7 @@ impl GraphEntry {
     }
 
     /// Пометить график как требующий пересчёта.
+    #[allow(dead_code)]
     pub fn mark_dirty(&mut self) {
         self.dirty = true;
     }
@@ -194,6 +196,7 @@ pub struct PlotApp {
     /// Флаг: есть несохранённые изменения.
     pub has_unsaved_changes: bool,
     /// Флаг: отменить закрытие (ожидание действия пользователя).
+    #[allow(dead_code)]
     pub cancel_close: bool,
     /// Стек для undo: снимки состояния graphs
     pub undo_stack: Vec<Vec<GraphEntry>>,
@@ -324,6 +327,7 @@ impl PlotApp {
     }
 
     /// Найти точки пересечения видимых графиков.
+    #[allow(dead_code)]
     pub fn find_intersections(&self) -> Vec<IntersectionPoint> {
         let mut intersections = Vec::new();
         let visible: Vec<&GraphEntry> = self
@@ -444,6 +448,7 @@ impl PlotApp {
 
     /// Предложить сохранить сессию при выходе.
     /// Возвращает путь, если пользователь выбрал файл для сохранения.
+    #[allow(dead_code)]
     pub fn prompt_save_on_exit(&mut self) -> Option<PathBuf> {
         // Предлагаем сохранить только если сессия никогда не была явно сохранена
         if self.session_path.is_some() {
@@ -498,6 +503,7 @@ impl PlotApp {
     }
 
     /// Сгенерировать таблицу значений для указанного графика.
+    #[allow(dead_code)]
     pub fn generate_values_table(&self, graph_index: usize, steps: usize) -> Option<Vec<(f64, f64)>> {
         let graph = self.graphs.get(graph_index)?;
         let data = graph.data.as_ref()?;
