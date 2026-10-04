@@ -89,7 +89,9 @@ fn render_graph_entry(
     // Кнопка включения/выключения слайдеров
     if !has_raw_data {
         ui.horizontal(|ui| {
-            if ui.checkbox(use_sliders, "Слайдеры").changed() {
+            // При включении слайдеров — извлекаем коэффициенты из формулы
+            if ui.checkbox(use_sliders, "Слайдеры").changed() && *use_sliders {
+                *need_auto_extract = true;
                 changed = true;
             }
             if *use_sliders {
@@ -302,9 +304,11 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                 let new_formula = formula.clone();
                 if new_formula != old_formula {
                     g.formula_text = new_formula.clone();
-                    // Если формула изменилась — пересчитываем
-                    g.reparse();
-                    any_reparse = true;
+                    // Вызываем reparse только при потере фокуса (is_editing == false)
+                    if !is_editing {
+                        g.reparse();
+                        any_reparse = true;
+                    }
                 }
             }
         }
