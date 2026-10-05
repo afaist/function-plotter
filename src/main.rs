@@ -164,7 +164,7 @@ mod app_tests {
     fn test_plotapp_multiple_graphs_formula_change() {
         let mut app = PlotApp::default();
         assert_eq!(app.graphs[0].formula_text, "sin(x)");
-        assert_eq!(app.graphs[1].formula_text, "x^2 / 10");
+        assert_eq!(app.graphs[1].formula_text, "1/10*x^2+0.1*x-3");
 
         app.graphs[0].formula_text = "!!!".to_string();
         app.graphs[0].reparse();

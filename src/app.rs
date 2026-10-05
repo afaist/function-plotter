@@ -150,7 +150,7 @@ impl GraphEntry {
                 self.dirty = true;
             }
         }
-        
+
         // Автоматически включаем слайдеры для квадратичных формул
         if self.use_sliders && self.is_quadratic() {
             self.extract_quadratic_coeffs();
@@ -165,15 +165,15 @@ impl GraphEntry {
         let a = self.slider_a;
         let b = self.slider_b;
         let c = self.slider_c;
-        
+
         // Округляем до 10 знаков для точности
         let a = (a * 10000000000.0).round() / 10000000000.0;
         let b = (b * 10000000000.0).round() / 10000000000.0;
         let c = (c * 10000000000.0).round() / 10000000000.0;
-        
+
         // Формируем формулу: ax² + bx + c
         let mut formula = String::new();
-        
+
         // a*x^2
         if (a - 1.0).abs() < 1e-10 {
             formula.push_str("x^2");
@@ -182,7 +182,7 @@ impl GraphEntry {
         } else {
             formula.push_str(&format!("{a}*x^2"));
         }
-        
+
         // + b*x
         if b > 1e-10 {
             if (b - 1.0).abs() < 1e-10 {
@@ -197,18 +197,18 @@ impl GraphEntry {
                 formula.push_str(&format!(" - {b_abs}*x", b_abs = (-b).abs()));
             }
         }
-        
+
         // + c
         if c > 1e-10 {
             formula.push_str(&format!(" + {c}"));
         } else if c < -1e-10 {
             formula.push_str(&format!(" - {c_abs}", c_abs = (-c).abs()));
         }
-        
+
         if formula.is_empty() {
             formula = "0".to_string();
         }
-        
+
         self.formula_text = formula;
         self.reparse();
     }
@@ -219,33 +219,46 @@ impl GraphEntry {
             return false;
         }
         let text = self.formula_text.trim().to_lowercase();
-        
+
         // Должна содержать x^2
         if !text.contains("x^2") {
             return false;
         }
-        
+
         // Не должна содержать x^3 и выше
         if text.contains("x^3") || text.contains("x^4") || text.contains("x^5") {
             return false;
         }
-        
+
         // Не должна содержать других функций от x (sin, cos, tan, sqrt, abs, log, exp)
         // кроме констант и арифметики
-        let forbidden = ["sin(", "cos(", "tan(", "sqrt(", "abs(", "log(", "exp(", "deriv(", "integral("];
+        let forbidden = [
+            "sin(",
+            "cos(",
+            "tan(",
+            "sqrt(",
+            "abs(",
+            "log(",
+            "exp(",
+            "deriv(",
+            "integral(",
+        ];
         for f in &forbidden {
             if text.contains(f) {
                 return false;
             }
         }
-        
+
         // Не должна содержать других переменных кроме x
         let without_x = text.replace('x', "");
-        let without_ops = without_x.replace(|c: char| matches!(c, '+' | '-' | '*' | '/' | '.' | '^' | '0'..='9' | ' '), "");
+        let without_ops = without_x.replace(
+            |c: char| matches!(c, '+' | '-' | '*' | '/' | '.' | '^' | '0'..='9' | ' '),
+            "",
+        );
         if !without_ops.is_empty() {
             return false;
         }
-        
+
         true
     }
 
@@ -254,14 +267,14 @@ impl GraphEntry {
         if !self.is_quadratic() {
             return false;
         }
-        
+
         let text = self.formula_text.trim().to_lowercase();
         let terms = self.split_terms(&text);
-        
+
         let mut a = 0.0;
         let mut b = 0.0;
         let mut c = 0.0;
-        
+
         for term in &terms {
             if term.contains("x^2") {
                 a = self.parse_coeff(term, "x^2");
@@ -271,12 +284,12 @@ impl GraphEntry {
                 c = self.parse_coeff(term, "");
             }
         }
-        
+
         self.slider_a = a;
         self.slider_b = b;
         self.slider_c = c;
         self.use_sliders = true;
-        
+
         true
     }
 
@@ -285,7 +298,7 @@ impl GraphEntry {
         let mut terms = Vec::new();
         let mut current = String::new();
         let chars = text.chars().peekable();
-        
+
         for ch in chars {
             if ch == '+' || ch == '-' {
                 if !current.is_empty() {
@@ -299,11 +312,11 @@ impl GraphEntry {
                 current.push(ch);
             }
         }
-        
+
         if !current.is_empty() {
             terms.push(current);
         }
-        
+
         terms
     }
 
@@ -311,7 +324,7 @@ impl GraphEntry {
     /// "2*x^2" + "x^2" → 2, "-x^2" + "x^2" → -1, "x^2" + "x^2" → 1
     fn parse_coeff(&self, term: &str, suffix: &str) -> f64 {
         let term = term.trim();
-        
+
         // Убираем знак + или -
         let (sign, rest) = if let Some(stripped) = term.strip_prefix('-') {
             (-1.0, stripped)
@@ -320,7 +333,7 @@ impl GraphEntry {
         } else {
             (1.0, term)
         };
-        
+
         // Убираем суффикс
         let rest = if suffix.is_empty() {
             rest
@@ -329,24 +342,24 @@ impl GraphEntry {
         } else {
             return 0.0;
         };
-        
+
         let rest = rest.trim();
-        
+
         if rest.is_empty() || rest == "*" {
             return sign; // "-x^2" или "x^2" → 1 или -1
         }
-        
+
         // Убираем '*' если остался (например "2*" → "2")
         let rest = rest.strip_suffix('*').unwrap_or(rest).trim();
-        
+
         if rest.is_empty() {
             return sign;
         }
-        
+
         if let Ok(val) = rest.parse::<f64>() {
             return sign * val;
         }
-        
+
         // Поддержка дробей: "1/10", "1/3", "2/5"
         if let Some(pos) = rest.find('/') {
             let numer_str = rest[..pos].trim();
@@ -357,7 +370,7 @@ impl GraphEntry {
                 }
             }
         }
-        
+
         sign // Если не удалось распарсить число, считаем 1
     }
 
@@ -372,10 +385,14 @@ impl GraphEntry {
         let parsed = self.parsed.as_ref()?;
         let (color, icon, label) = match parsed.formula_type() {
             parser::FormulaType::Regular => (Color32::from_rgb(150, 150, 150), "●", "Обычная"),
-            parser::FormulaType::Derivative => (Color32::from_rgb(255, 170, 50), "∂", "Производная"),
+            parser::FormulaType::Derivative => {
+                (Color32::from_rgb(255, 170, 50), "∂", "Производная")
+            }
             parser::FormulaType::Integral => (Color32::from_rgb(100, 200, 255), "∫", "Интеграл"),
             parser::FormulaType::Polar => (Color32::from_rgb(100, 255, 100), "◎", "Полярная"),
-            parser::FormulaType::Parametric => (Color32::from_rgb(255, 130, 200), "⟳", "Параметрическая"),
+            parser::FormulaType::Parametric => {
+                (Color32::from_rgb(255, 130, 200), "⟳", "Параметрическая")
+            }
         };
         Some((color, icon, label))
     }
@@ -608,328 +625,367 @@ impl PlotApp {
                                         });
                                     if !is_dup {
                                         intersections.push(IntersectionPoint { x: ix, y: iy });
-        }
-    }
-}
+                                    }
+                                }
+                            }
 
-#[cfg(test)]
-mod tests {
-    use std::fs;
-    use std::path::PathBuf;
+                            #[cfg(test)]
+                            #[allow(dead_code)]
+                            mod tests {
+                                use std::fs;
+                                use std::path::PathBuf;
 
-    use super::*;
-    use crate::config::AppConfig;
+                                use super::*;
+                                use crate::config::AppConfig;
 
-    fn create_temp_config(width: f64, height: f64, suffix: &str) -> PathBuf {
-        let temp_dir = std::env::temp_dir().join("function-plotter-test");
-        if let Err(e) = fs::create_dir_all(&temp_dir) {
-            eprintln!("Warning: Could not create temp dir: {e}");
-        }
-        let config_path = temp_dir.join(format!("config{}.json", suffix));
-        
-        let config = AppConfig {
-            version: 3,
-            window_width: width,
-            window_height: height,
-            auto_load_last_session: false,
-            last_session_path: None,
-            theme: "dark".to_string(),
-        };
-        if let Err(e) = config.save_to(&config_path) {
-            eprintln!("Warning: Could not save config: {e}");
-        }
-        config_path
-    }
+                                fn create_temp_config(
+                                    width: f64,
+                                    height: f64,
+                                    suffix: &str,
+                                ) -> PathBuf {
+                                    let temp_dir =
+                                        std::env::temp_dir().join("function-plotter-test");
+                                    if let Err(e) = fs::create_dir_all(&temp_dir) {
+                                        eprintln!("Warning: Could not create temp dir: {e}");
+                                    }
+                                    let config_path =
+                                        temp_dir.join(format!("config{}.json", suffix));
 
-    #[test]
-    fn test_window_size_default() {
-        let app = PlotApp::default();
-        
-        // По умолчанию размер должен быть 1000x700
-        assert_eq!(app.window_size[0], 1000.0);
-        assert_eq!(app.window_size[1], 700.0);
-    }
+                                    let config = AppConfig {
+                                        version: 3,
+                                        window_width: width,
+                                        window_height: height,
+                                        auto_load_last_session: false,
+                                        last_session_path: None,
+                                        theme: "dark".to_string(),
+                                    };
+                                    if let Err(e) = config.save_to(&config_path) {
+                                        eprintln!("Warning: Could not save config: {e}");
+                                    }
+                                    config_path
+                                }
 
-    #[test]
-    fn test_window_size_from_config() {
-        let temp_dir = std::env::temp_dir().join("function-plotter-test-parametric");
-        let _ = fs::create_dir_all(&temp_dir);
-        let config_path = temp_dir.join("config_test.json");
-        
-        // Создаём config с нужным размером
-        let config = AppConfig {
-            version: 3,
-            window_width: 1200.0,
-            window_height: 800.0,
-            auto_load_last_session: false,
-            last_session_path: None,
-            theme: "dark".to_string(),
-        };
-        config.save_to(&config_path).ok();
-        
-        // Загружаем config и проверяем, что значения правильные
-        let loaded = AppConfig::load_from(&config_path);
-        assert_eq!(loaded.window_width, 1200.0, "window_width should be 1200.0");
-        assert_eq!(loaded.window_height, 800.0, "window_height should be 800.0");
-        
-        // Чистим
-        let _ = fs::remove_dir_all(&temp_dir);
-    }
+                                #[test]
+                                fn test_window_size_default() {
+                                    let app = PlotApp::default();
 
-    #[test]
-    fn test_save_and_restore_window_size() {
-        let config_path = create_temp_config(1280.0, 720.0, "_save_restore");
-        
-        // Создаём config с нужным размером
-        let config = AppConfig::load_from(&config_path);
-        let new_config = AppConfig {
-            window_width: 1280.0,
-            window_height: 720.0,
-            ..config
-        };
-        new_config.save_to(&config_path).unwrap();
-        
-        // Восстанавливаем размер из config
-        let restored_config = AppConfig::load_from(&config_path);
-        let window_size = [restored_config.window_width as f32, restored_config.window_height as f32];
-        
-        assert_eq!(window_size[0], 1280.0);
-        assert_eq!(window_size[1], 720.0);
-        
-        // Чистим
-        let temp_dir = config_path.parent().unwrap().to_path_buf();
-        let _ = fs::remove_dir_all(&temp_dir);
-    }
+                                    // По умолчанию размер должен быть 1000x700
+                                    assert_eq!(app.window_size[0], 1000.0);
+                                    assert_eq!(app.window_size[1], 700.0);
+                                }
 
-    // --- Undo/Redo тесты ---
+                                #[test]
+                                fn test_window_size_from_config() {
+                                    let temp_dir = std::env::temp_dir()
+                                        .join("function-plotter-test-parametric");
+                                    let _ = fs::create_dir_all(&temp_dir);
+                                    let config_path = temp_dir.join("config_test.json");
 
-    #[test]
-    fn test_undo_redo_basic() {
-        let mut app = PlotApp::default();
-        let initial_count = app.graphs.len();
-        
-        // Добавляем снимок и новый график
-        app.save_snapshot();
-        app.graphs.push(GraphEntry::new("f_test", Color32::RED, "x^2"));
-        assert_eq!(app.graphs.len(), initial_count + 1);
-        
-        // Undo — должен вернуть начальное состояние
-        assert!(app.undo());
-        assert_eq!(app.graphs.len(), initial_count);
-        
-        // Redo — должен вернуть добавленный график
-        assert!(app.redo());
-        assert_eq!(app.graphs.len(), initial_count + 1);
-    }
+                                    // Создаём config с нужным размером
+                                    let config = AppConfig {
+                                        version: 3,
+                                        window_width: 1200.0,
+                                        window_height: 800.0,
+                                        auto_load_last_session: false,
+                                        last_session_path: None,
+                                        theme: "dark".to_string(),
+                                    };
+                                    config.save_to(&config_path).ok();
 
-    #[test]
-    fn test_undo_redo_multiple() {
-        let mut app = PlotApp::default();
-        let initial_count = app.graphs.len();
-        
-        // 3 действия
-        app.save_snapshot();
-        app.graphs.push(GraphEntry::new("f1", Color32::RED, "x"));
-        
-        app.save_snapshot();
-        app.graphs.push(GraphEntry::new("f2", Color32::BLUE, "x^2"));
-        
-        app.save_snapshot();
-        app.graphs.push(GraphEntry::new("f3", Color32::GREEN, "x^3"));
-        
-        assert_eq!(app.graphs.len(), initial_count + 3);
-        
-        // Undo 2 раза
-        assert!(app.undo());
-        assert_eq!(app.graphs.len(), initial_count + 2);
-        assert!(app.undo());
-        assert_eq!(app.graphs.len(), initial_count + 1);
-        
-        // Redo 1 раз
-        assert!(app.redo());
-        assert_eq!(app.graphs.len(), initial_count + 2);
-    }
+                                    // Загружаем config и проверяем, что значения правильные
+                                    let loaded = AppConfig::load_from(&config_path);
+                                    assert_eq!(
+                                        loaded.window_width, 1200.0,
+                                        "window_width should be 1200.0"
+                                    );
+                                    assert_eq!(
+                                        loaded.window_height, 800.0,
+                                        "window_height should be 800.0"
+                                    );
 
-    #[test]
-    fn test_undo_redo_clear() {
-        let mut app = PlotApp::default();
-        
-        // Добавляем действие
-        app.save_snapshot();
-        app.graphs.push(GraphEntry::new("f1", Color32::RED, "x"));
-        
-        // Undo
-        assert!(app.undo());
-        assert_eq!(app.graphs.len(), 2); // начальное состояние
-        
-        // Новое действие после undo — redo должен очиститься
-        app.save_snapshot();
-        app.graphs.push(GraphEntry::new("f2", Color32::BLUE, "x^2"));
-        
-        // Redo должен быть пуст
-        assert!(!app.redo());
-    }
+                                    // Чистим
+                                    let _ = fs::remove_dir_all(&temp_dir);
+                                }
 
-    #[test]
-    fn test_undo_redo_limit() {
-        let mut app = PlotApp::default();
-        app.max_history = 3;
-        
-        // Начальное состояние: 2 графика
-        let initial_count = app.graphs.len();
-        assert_eq!(initial_count, 2);
-        
-        // Добавляем 5 действий
-        for i in 0..5 {
-            app.save_snapshot();
-            app.graphs.push(GraphEntry::new(&format!("f{}", i), Color32::RED, "x"));
-        }
-        
-        // Должно остаться только 3 последних (из-за max_history = 3)
-        assert_eq!(app.undo_stack.len(), 3);
-        
-        // Undo 3 раза — должны восстановиться первые 2 графика
-        // После 3 undos: 2 + (5-3) = 4 графика
-        assert!(app.undo());
-        assert!(app.undo());
-        assert!(app.undo());
-        assert_eq!(app.graphs.len(), initial_count + 2); // 2 + 2 = 4
-        
-        // Ещё один undo — стек пуст
-        assert!(!app.undo());
-    }
+                                #[test]
+                                fn test_save_and_restore_window_size() {
+                                    let config_path =
+                                        create_temp_config(1280.0, 720.0, "_save_restore");
 
-    #[test]
-    fn test_undo_no_graphs() {
-        let mut app = PlotApp::default();
-        
-        // Undo без снимков — ничего не происходит
-        assert!(!app.undo());
-        assert_eq!(app.graphs.len(), 2); // начальное состояние
-    }
+                                    // Создаём config с нужным размером
+                                    let config = AppConfig::load_from(&config_path);
+                                    let new_config = AppConfig {
+                                        window_width: 1280.0,
+                                        window_height: 720.0,
+                                        ..config
+                                    };
+                                    new_config.save_to(&config_path).unwrap();
 
-    // --- Тесты formula_type_info ---
+                                    // Восстанавливаем размер из config
+                                    let restored_config = AppConfig::load_from(&config_path);
+                                    let window_size = [
+                                        restored_config.window_width as f32,
+                                        restored_config.window_height as f32,
+                                    ];
 
-    #[test]
-    fn test_formula_type_regular() {
-        let entry = GraphEntry::new("f1", Color32::RED, "x^2");
-        let info = entry.formula_type_info();
-        assert!(info.is_some());
-        let (color, _icon, label) = info.unwrap();
-        assert_eq!(label, "Обычная");
-        assert_eq!(color, Color32::from_rgb(150, 150, 150));
-    }
+                                    assert_eq!(window_size[0], 1280.0);
+                                    assert_eq!(window_size[1], 720.0);
 
-    #[test]
-    fn test_formula_type_derivative() {
-        let entry = GraphEntry::new("f1", Color32::RED, "deriv(sin(x))");
-        let info = entry.formula_type_info();
-        assert!(info.is_some());
-        let (_color, _icon, label) = info.unwrap();
-        assert_eq!(label, "Производная");
-    }
+                                    // Чистим
+                                    let temp_dir = config_path.parent().unwrap().to_path_buf();
+                                    let _ = fs::remove_dir_all(&temp_dir);
+                                }
 
-    #[test]
-    fn test_formula_type_integral() {
-        let entry = GraphEntry::new("f1", Color32::RED, "integral(sin(x), 0, pi)");
-        let info = entry.formula_type_info();
-        assert!(info.is_some());
-        let (_color, _icon, label) = info.unwrap();
-        assert_eq!(label, "Интеграл");
-    }
+                                // --- Undo/Redo тесты ---
 
-    #[test]
-    fn test_formula_type_polar() {
-        let entry = GraphEntry::new("f1", Color32::RED, "polar(cos(x), 0, 2*pi)");
-        let info = entry.formula_type_info();
-        assert!(info.is_some());
-        let (_color, _icon, label) = info.unwrap();
-        assert_eq!(label, "Полярная");
-    }
+                                #[test]
+                                fn test_undo_redo_basic() {
+                                    let mut app = PlotApp::default();
+                                    let initial_count = app.graphs.len();
 
-    #[test]
-    fn test_formula_type_parametric() {
-        let entry = GraphEntry::new("f1", Color32::RED, "parametric(cos(t), sin(t), 0, 2*pi)");
-        let info = entry.formula_type_info();
-        assert!(info.is_some());
-        let (_color, _icon, label) = info.unwrap();
-        assert_eq!(label, "Параметрическая");
-    }
+                                    // Добавляем снимок и новый график
+                                    app.save_snapshot();
+                                    app.graphs
+                                        .push(GraphEntry::new("f_test", Color32::RED, "x^2"));
+                                    assert_eq!(app.graphs.len(), initial_count + 1);
 
-    #[test]
-    fn test_formula_type_parse_error() {
-        let entry = GraphEntry::new("f1", Color32::RED, "invalid_syntax_here");
-        // При ошибке парсинга parsed = None, поэтому formula_type_info = None
-        assert!(entry.formula_type_info().is_none());
-    }
+                                    // Undo — должен вернуть начальное состояние
+                                    assert!(app.undo());
+                                    assert_eq!(app.graphs.len(), initial_count);
 
-    // --- Тесты таблицы значений ---
+                                    // Redo — должен вернуть добавленный график
+                                    assert!(app.redo());
+                                    assert_eq!(app.graphs.len(), initial_count + 1);
+                                }
 
-    #[test]
-    fn test_generate_values_table_basic() {
-        let mut app = PlotApp::default();
-        app.graphs.clear();
-        app.graphs.push(GraphEntry::new("f1", Color32::RED, "x"));
-        app.recompute_all();
-        
-        let table = app.generate_values_table(0, 5);
-        assert!(table.is_some());
-        let table = table.unwrap();
-        assert_eq!(table.len(), 5);
-        
-        // Для функции y = x, первая точка должна быть при x = viewport.x_min
-        let first = table[0];
-        assert!(first.0.abs() - app.viewport.x_min.abs() < 0.01);
-    }
+                                #[test]
+                                fn test_undo_redo_multiple() {
+                                    let mut app = PlotApp::default();
+                                    let initial_count = app.graphs.len();
 
-    #[test]
-    fn test_generate_values_table_empty_graph() {
-        let mut app = PlotApp::default();
-        app.graphs.clear();
-        // Не добавляем графики — таблица должна вернуть None
-        let table = app.generate_values_table(0, 5);
-        assert!(table.is_none());
-    }
+                                    // 3 действия
+                                    app.save_snapshot();
+                                    app.graphs.push(GraphEntry::new("f1", Color32::RED, "x"));
 
-    #[test]
-    fn test_generate_values_table_steps_range() {
-        let mut app = PlotApp::default();
-        app.graphs.clear();
-        app.graphs.push(GraphEntry::new("f1", Color32::RED, "x"));
-        app.recompute_all();
-        
-        // Минимальное количество шагов
-        let table_min = app.generate_values_table(0, 2);
-        assert!(table_min.is_some());
-        assert_eq!(table_min.unwrap().len(), 2);
-        
-        // Максимальное количество шагов
-        let table_max = app.generate_values_table(0, 10000);
-        assert!(table_max.is_some());
-        // Должно быть ограничено 1000
-        assert_eq!(table_max.unwrap().len(), 1000);
-    }
+                                    app.save_snapshot();
+                                    app.graphs.push(GraphEntry::new("f2", Color32::BLUE, "x^2"));
 
-    #[test]
-    fn test_generate_values_table_sin() {
-        let mut app = PlotApp::default();
-        app.graphs.clear();
-        app.graphs.push(GraphEntry::new("f1", Color32::RED, "sin(x)"));
-        app.recompute_all();
-        
-        let table = app.generate_values_table(0, 10);
-        assert!(table.is_some());
-        let table = table.unwrap();
-        
-        // Для sin(x) значения должны быть в диапазоне [-1, 1]
-        for (_, y) in &table {
-            if y.is_finite() {
-                assert!(*y >= -1.0 - 1e-10, "Y должно быть >= -1");
-                assert!(*y <= 1.0 + 1e-10, "Y должно быть <= 1");
-            }
-        }
-    }
-}
+                                    app.save_snapshot();
+                                    app.graphs
+                                        .push(GraphEntry::new("f3", Color32::GREEN, "x^3"));
+
+                                    assert_eq!(app.graphs.len(), initial_count + 3);
+
+                                    // Undo 2 раза
+                                    assert!(app.undo());
+                                    assert_eq!(app.graphs.len(), initial_count + 2);
+                                    assert!(app.undo());
+                                    assert_eq!(app.graphs.len(), initial_count + 1);
+
+                                    // Redo 1 раз
+                                    assert!(app.redo());
+                                    assert_eq!(app.graphs.len(), initial_count + 2);
+                                }
+
+                                #[test]
+                                fn test_undo_redo_clear() {
+                                    let mut app = PlotApp::default();
+
+                                    // Добавляем действие
+                                    app.save_snapshot();
+                                    app.graphs.push(GraphEntry::new("f1", Color32::RED, "x"));
+
+                                    // Undo
+                                    assert!(app.undo());
+                                    assert_eq!(app.graphs.len(), 2); // начальное состояние
+
+                                    // Новое действие после undo — redo должен очиститься
+                                    app.save_snapshot();
+                                    app.graphs.push(GraphEntry::new("f2", Color32::BLUE, "x^2"));
+
+                                    // Redo должен быть пуст
+                                    assert!(!app.redo());
+                                }
+
+                                #[test]
+                                fn test_undo_redo_limit() {
+                                    let mut app = PlotApp::default();
+                                    app.max_history = 3;
+
+                                    // Начальное состояние: 2 графика
+                                    let initial_count = app.graphs.len();
+                                    assert_eq!(initial_count, 2);
+
+                                    // Добавляем 5 действий
+                                    for i in 0..5 {
+                                        app.save_snapshot();
+                                        app.graphs.push(GraphEntry::new(
+                                            &format!("f{}", i),
+                                            Color32::RED,
+                                            "x",
+                                        ));
+                                    }
+
+                                    // Должно остаться только 3 последних (из-за max_history = 3)
+                                    assert_eq!(app.undo_stack.len(), 3);
+
+                                    // Undo 3 раза — должны восстановиться первые 2 графика
+                                    // После 3 undos: 2 + (5-3) = 4 графика
+                                    assert!(app.undo());
+                                    assert!(app.undo());
+                                    assert!(app.undo());
+                                    assert_eq!(app.graphs.len(), initial_count + 2); // 2 + 2 = 4
+
+                                    // Ещё один undo — стек пуст
+                                    assert!(!app.undo());
+                                }
+
+                                #[test]
+                                fn test_undo_no_graphs() {
+                                    let mut app = PlotApp::default();
+
+                                    // Undo без снимков — ничего не происходит
+                                    assert!(!app.undo());
+                                    assert_eq!(app.graphs.len(), 2); // начальное состояние
+                                }
+
+                                // --- Тесты formula_type_info ---
+
+                                #[test]
+                                fn test_formula_type_regular() {
+                                    let entry = GraphEntry::new("f1", Color32::RED, "x^2");
+                                    let info = entry.formula_type_info();
+                                    assert!(info.is_some());
+                                    let (color, _icon, label) = info.unwrap();
+                                    assert_eq!(label, "Обычная");
+                                    assert_eq!(color, Color32::from_rgb(150, 150, 150));
+                                }
+
+                                #[test]
+                                fn test_formula_type_derivative() {
+                                    let entry =
+                                        GraphEntry::new("f1", Color32::RED, "deriv(sin(x))");
+                                    let info = entry.formula_type_info();
+                                    assert!(info.is_some());
+                                    let (_color, _icon, label) = info.unwrap();
+                                    assert_eq!(label, "Производная");
+                                }
+
+                                #[test]
+                                fn test_formula_type_integral() {
+                                    let entry = GraphEntry::new(
+                                        "f1",
+                                        Color32::RED,
+                                        "integral(sin(x), 0, pi)",
+                                    );
+                                    let info = entry.formula_type_info();
+                                    assert!(info.is_some());
+                                    let (_color, _icon, label) = info.unwrap();
+                                    assert_eq!(label, "Интеграл");
+                                }
+
+                                #[test]
+                                fn test_formula_type_polar() {
+                                    let entry = GraphEntry::new(
+                                        "f1",
+                                        Color32::RED,
+                                        "polar(cos(x), 0, 2*pi)",
+                                    );
+                                    let info = entry.formula_type_info();
+                                    assert!(info.is_some());
+                                    let (_color, _icon, label) = info.unwrap();
+                                    assert_eq!(label, "Полярная");
+                                }
+
+                                #[test]
+                                fn test_formula_type_parametric() {
+                                    let entry = GraphEntry::new(
+                                        "f1",
+                                        Color32::RED,
+                                        "parametric(cos(t), sin(t), 0, 2*pi)",
+                                    );
+                                    let info = entry.formula_type_info();
+                                    assert!(info.is_some());
+                                    let (_color, _icon, label) = info.unwrap();
+                                    assert_eq!(label, "Параметрическая");
+                                }
+
+                                #[test]
+                                fn test_formula_type_parse_error() {
+                                    let entry =
+                                        GraphEntry::new("f1", Color32::RED, "invalid_syntax_here");
+                                    // При ошибке парсинга parsed = None, поэтому formula_type_info = None
+                                    assert!(entry.formula_type_info().is_none());
+                                }
+
+                                // --- Тесты таблицы значений ---
+
+                                #[test]
+                                fn test_generate_values_table_basic() {
+                                    let mut app = PlotApp::default();
+                                    app.graphs.clear();
+                                    app.graphs.push(GraphEntry::new("f1", Color32::RED, "x"));
+                                    app.recompute_all();
+
+                                    let table = app.generate_values_table(0, 5);
+                                    assert!(table.is_some());
+                                    let table = table.unwrap();
+                                    assert_eq!(table.len(), 5);
+
+                                    // Для функции y = x, первая точка должна быть при x = viewport.x_min
+                                    let first = table[0];
+                                    assert!(first.0.abs() - app.viewport.x_min.abs() < 0.01);
+                                }
+
+                                #[test]
+                                fn test_generate_values_table_empty_graph() {
+                                    let mut app = PlotApp::default();
+                                    app.graphs.clear();
+                                    // Не добавляем графики — таблица должна вернуть None
+                                    let table = app.generate_values_table(0, 5);
+                                    assert!(table.is_none());
+                                }
+
+                                #[test]
+                                fn test_generate_values_table_steps_range() {
+                                    let mut app = PlotApp::default();
+                                    app.graphs.clear();
+                                    app.graphs.push(GraphEntry::new("f1", Color32::RED, "x"));
+                                    app.recompute_all();
+
+                                    // Минимальное количество шагов
+                                    let table_min = app.generate_values_table(0, 2);
+                                    assert!(table_min.is_some());
+                                    assert_eq!(table_min.unwrap().len(), 2);
+
+                                    // Максимальное количество шагов
+                                    let table_max = app.generate_values_table(0, 10000);
+                                    assert!(table_max.is_some());
+                                    // Должно быть ограничено 1000
+                                    assert_eq!(table_max.unwrap().len(), 1000);
+                                }
+
+                                #[test]
+                                fn test_generate_values_table_sin() {
+                                    let mut app = PlotApp::default();
+                                    app.graphs.clear();
+                                    app.graphs
+                                        .push(GraphEntry::new("f1", Color32::RED, "sin(x)"));
+                                    app.recompute_all();
+
+                                    let table = app.generate_values_table(0, 10);
+                                    assert!(table.is_some());
+                                    let table = table.unwrap();
+
+                                    // Для sin(x) значения должны быть в диапазоне [-1, 1]
+                                    for (_, y) in &table {
+                                        if y.is_finite() {
+                                            assert!(*y >= -1.0 - 1e-10, "Y должно быть >= -1");
+                                            assert!(*y <= 1.0 + 1e-10, "Y должно быть <= 1");
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -960,7 +1016,7 @@ mod tests {
     pub fn save_snapshot(&mut self) {
         self.undo_stack.push(self.graphs.clone());
         self.redo_stack.clear(); // новое действие — очищаем redo
-        // Ограничить размер истории
+                                 // Ограничить размер истории
         if self.undo_stack.len() > self.max_history {
             self.undo_stack.remove(0);
         }
@@ -1035,12 +1091,15 @@ mod tests {
                     Ok(session_data) => {
                         session_data.apply_to_app(self);
                         self.session_path = Some(path.clone());
-                        self.status_msg =
-                            Some(StatusMessage::Info(format!("Автозагрузка: {}", path.display())));
+                        self.status_msg = Some(StatusMessage::Info(format!(
+                            "Автозагрузка: {}",
+                            path.display()
+                        )));
                         self.status_time = Some(Instant::now());
                     }
                     Err(e) => {
-                        self.status_msg = Some(StatusMessage::Error(format!("Ошибка автозагрузки: {e}")));
+                        self.status_msg =
+                            Some(StatusMessage::Error(format!("Ошибка автозагрузки: {e}")));
                         self.status_time = Some(Instant::now());
                     }
                 }
@@ -1050,22 +1109,26 @@ mod tests {
 
     /// Сгенерировать таблицу значений для указанного графика.
     #[allow(dead_code)]
-    pub fn generate_values_table(&self, graph_index: usize, steps: usize) -> Option<Vec<(f64, f64)>> {
+    pub fn generate_values_table(
+        &self,
+        graph_index: usize,
+        steps: usize,
+    ) -> Option<Vec<(f64, f64)>> {
         let graph = self.graphs.get(graph_index)?;
         let data = graph.data.as_ref()?;
-        
+
         let n = steps.clamp(2, 1000);
         let x_range = self.viewport.x_max - self.viewport.x_min;
         let x_step = x_range / (n - 1) as f64;
         let x_start = self.viewport.x_min;
-        
+
         let mut table = Vec::with_capacity(n);
         for i in 0..n {
             let x = x_start + i as f64 * x_step;
             let y = data.points.get(i).map(|p| p.1).unwrap_or(f64::NAN);
             table.push((x, y));
         }
-        
+
         Some(table)
     }
 
@@ -1084,7 +1147,7 @@ mod tests {
         style.visuals.override_text_color = Some(theme.egui_text);
         style.visuals.window_fill = theme.egui_bg;
         style.visuals.panel_fill = theme.egui_bg;
-        
+
         // egui 0.36.x: стили привязаны к теме (Dark/Light)
         let egui_theme = if theme.egui_bg.r() < 128 {
             egui::Theme::Dark
@@ -1128,7 +1191,10 @@ fn render_values_table_ui(
         let mut steps = *table_steps;
         ui.horizontal(|ui| {
             ui.label("Шагов:");
-            if ui.add(egui::Slider::new(&mut steps, 5..=100).text("количество")).changed() {
+            if ui
+                .add(egui::Slider::new(&mut steps, 5..=100).text("количество"))
+                .changed()
+            {
                 *table_steps = steps;
             }
         });
@@ -1139,7 +1205,10 @@ fn render_values_table_ui(
         let x_step = x_range / (n - 1) as f64;
 
         ui.add_space(8.0);
-        ui.label(format!("График: {}  |  Формула: {}", data.graph_label, data.formula));
+        ui.label(format!(
+            "График: {}  |  Формула: {}",
+            data.graph_label, data.formula
+        ));
         ui.separator();
 
         // Используем Grid для таблицы
@@ -1154,7 +1223,7 @@ fn render_values_table_ui(
                 for i in 0..n {
                     let x = x_min + i as f64 * x_step;
                     let y = data.points.get(i).map(|p| p.1).unwrap_or(f64::NAN);
-                    
+
                     ui.label(format!("{:.4}", x));
                     if y.is_nan() {
                         ui.label("—");
@@ -1175,10 +1244,10 @@ fn render_values_table_ui(
 impl eframe::App for PlotApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
-        
+
         // Применяем тему в начале каждого кадра
         self.apply_theme(&ctx);
-        
+
         // --- Запрос на сохранение сессии при выходе ---
         // 1. Проверяем, нажал ли пользователь на крестик окна
         if ctx.input(|i| i.viewport().close_requested()) {
@@ -1196,7 +1265,7 @@ impl eframe::App for PlotApp {
             let mut save_file = false;
             let mut close_without_save = false;
             let mut cancel = false;
-            
+
             egui::Window::new("Сохранить сессию?")
                 .resizable(false)
                 .collapsible(false)
@@ -1260,8 +1329,7 @@ impl eframe::App for PlotApp {
         let ctrl = input.modifiers.ctrl || input.modifiers.command;
 
         // Ctrl+Z — отмена
-        if input.key_pressed(egui::Key::Z) && ctrl && !input.modifiers.shift
-            && self.undo() {
+        if input.key_pressed(egui::Key::Z) && ctrl && !input.modifiers.shift && self.undo() {
             self.status_msg = Some(StatusMessage::Info("Отменено".to_string()));
             self.status_time = Some(Instant::now());
         }
@@ -1423,7 +1491,14 @@ impl eframe::App for PlotApp {
                     }
                 });
 
-                render_values_table_ui(ui, &mut self.values_table_steps, x_min, x_max, table_data.as_ref(), &graph_label);
+                render_values_table_ui(
+                    ui,
+                    &mut self.values_table_steps,
+                    x_min,
+                    x_max,
+                    table_data.as_ref(),
+                    &graph_label,
+                );
             });
 
         // --- Обработка скриншота ---
@@ -1439,7 +1514,7 @@ impl eframe::App for PlotApp {
             });
             if let Some(screenshot) = screenshot {
                 self.should_capture = false;
-                
+
                 if let (Some(rect), Some(ref save_path)) = (self.graph_rect, &self.save_path) {
                     if let Err(e) = save_rect_to_png(&screenshot, rect, save_path) {
                         self.status_msg = Some(StatusMessage::Error(format!("Ошибка PNG: {e}")));
