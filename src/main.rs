@@ -256,4 +256,50 @@ mod app_tests {
         assert!(graph.formula_text.contains("5"), "Формула должна содержать 5");
         assert!(graph.parsed.is_some(), "Формула должна парситься");
     }
+
+    #[test]
+    fn test_extract_coeffs_fraction_a() {
+        let mut graph = GraphEntry::new("f1", Color32::RED, "1/10*x^2");
+        assert!(graph.is_quadratic());
+        
+        let extracted = graph.extract_quadratic_coeffs();
+        assert!(extracted, "Коэффициенты должны извлечься");
+        
+        assert!((graph.slider_a - 0.1).abs() < 1e-10, "a должно быть 0.1, got {}", graph.slider_a);
+    }
+
+    #[test]
+    fn test_extract_coeffs_fraction_b() {
+        let mut graph = GraphEntry::new("f1", Color32::RED, "x^2 + 1/3*x");
+        assert!(graph.is_quadratic());
+        
+        let extracted = graph.extract_quadratic_coeffs();
+        assert!(extracted, "Коэффициенты должны извлечься");
+        
+        assert!((graph.slider_b - 1.0/3.0).abs() < 1e-10, "b должно быть 1/3, got {}", graph.slider_b);
+    }
+
+    #[test]
+    fn test_extract_coeffs_fraction_c() {
+        let mut graph = GraphEntry::new("f1", Color32::RED, "x^2 - 1/2");
+        assert!(graph.is_quadratic());
+        
+        let extracted = graph.extract_quadratic_coeffs();
+        assert!(extracted, "Коэффициенты должны извлечься");
+        
+        assert!((graph.slider_c + 0.5).abs() < 1e-10, "c должно быть -0.5, got {}", graph.slider_c);
+    }
+
+    #[test]
+    fn test_extract_coeffs_mixed_fractions() {
+        let mut graph = GraphEntry::new("f1", Color32::RED, "1/2*x^2 + 2/3*x - 3/4");
+        assert!(graph.is_quadratic());
+        
+        let extracted = graph.extract_quadratic_coeffs();
+        assert!(extracted, "Коэффициенты должны извлечься");
+        
+        assert!((graph.slider_a - 0.5).abs() < 1e-10, "a = 0.5, got {}", graph.slider_a);
+        assert!((graph.slider_b - 2.0/3.0).abs() < 1e-10, "b = 2/3, got {}", graph.slider_b);
+        assert!((graph.slider_c + 0.75).abs() < 1e-10, "c = -0.75, got {}", graph.slider_c);
+    }
 }

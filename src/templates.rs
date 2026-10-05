@@ -62,8 +62,8 @@ pub fn all_templates() -> &'static [FunctionTemplate] {
             category: "Полиномы",
         },
         FunctionTemplate {
-            name: "x^2/10",
-            formula: "x^2/10",
+            name: "1/10*x^2",
+            formula: "1/10*x^2",
             category: "Полиномы",
         },
         FunctionTemplate {

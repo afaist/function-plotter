@@ -267,8 +267,8 @@ impl GraphEntry {
                 a = self.parse_coeff(term, "x^2");
             } else if term.contains("x") {
                 b = self.parse_coeff(term, "x");
-            } else if let Ok(val) = term.parse::<f64>() {
-                c = val;
+            } else {
+                c = self.parse_coeff(term, "");
             }
         }
         
@@ -322,7 +322,9 @@ impl GraphEntry {
         };
         
         // Убираем суффикс
-        let rest = if let Some(pos) = rest.find(suffix) {
+        let rest = if suffix.is_empty() {
+            rest
+        } else if let Some(pos) = rest.find(suffix) {
             &rest[..pos]
         } else {
             return 0.0;
@@ -343,6 +345,17 @@ impl GraphEntry {
         
         if let Ok(val) = rest.parse::<f64>() {
             return sign * val;
+        }
+        
+        // Поддержка дробей: "1/10", "1/3", "2/5"
+        if let Some(pos) = rest.find('/') {
+            let numer_str = rest[..pos].trim();
+            let denom_str = rest[pos + 1..].trim();
+            if let (Ok(numer), Ok(denom)) = (numer_str.parse::<f64>(), denom_str.parse::<f64>()) {
+                if denom != 0.0 {
+                    return sign * (numer / denom);
+                }
+            }
         }
         
         sign // Если не удалось распарсить число, считаем 1
