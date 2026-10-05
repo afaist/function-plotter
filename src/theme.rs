@@ -38,6 +38,8 @@ pub enum ThemeKind {
     HighContrast,
     Ocean,
     Monokai,
+    SolarizedLight,
+    GitHubLight,
 }
 
 impl ThemeKind {
@@ -50,6 +52,8 @@ impl ThemeKind {
             ThemeKind::HighContrast,
             ThemeKind::Ocean,
             ThemeKind::Monokai,
+            ThemeKind::SolarizedLight,
+            ThemeKind::GitHubLight,
         ]
     }
 
@@ -62,6 +66,8 @@ impl ThemeKind {
             ThemeKind::HighContrast => "HighContrast",
             ThemeKind::Ocean => "Ocean",
             ThemeKind::Monokai => "Monokai",
+            ThemeKind::SolarizedLight => "SolarizedLight",
+            ThemeKind::GitHubLight => "GitHubLight",
         }
     }
 
@@ -74,6 +80,8 @@ impl ThemeKind {
             "highcontrast" | "high_contrast" => Some(ThemeKind::HighContrast),
             "ocean" => Some(ThemeKind::Ocean),
             "monokai" => Some(ThemeKind::Monokai),
+            "solarizedlight" | "solarized_light" => Some(ThemeKind::SolarizedLight),
+            "githublight" | "github_light" => Some(ThemeKind::GitHubLight),
             _ => None,
         }
     }
@@ -239,6 +247,64 @@ impl ThemeKind {
                 egui_button_hover: Color32::from_rgb(65, 66, 60),
                 egui_selected: Color32::from_rgb(70, 70, 55),
                 egui_accent: Color32::from_rgb(255, 180, 100),
+            },
+            ThemeKind::SolarizedLight => Theme {
+                name: "SolarizedLight",
+                // Тёплый кремовый фон Solarized
+                canvas_bg: Color32::from_rgb(253, 246, 227),
+                frame_fill: Color32::from_rgb(242, 235, 217),
+                // Тёмно-синий текст (не чёрный — меньше утомляет)
+                text_primary: Color32::from_rgb(7, 54, 66),
+                text_secondary: Color32::from_rgb(88, 110, 117),
+                // Приглушённый серо-голубой для сетки
+                grid_color: Color32::from_rgba_unmultiplied(147, 161, 161, 100),
+                axis_color: Color32::from_rgb(110, 131, 150),
+                error_color: Color32::from_rgb(198, 68, 52),
+                error_bg: Color32::from_rgb(255, 220, 215),
+                status_info: Color32::from_rgb(0, 147, 100),
+                status_error: Color32::from_rgb(198, 68, 52),
+                selection_fill: Color32::from_rgb(220, 230, 235),
+                selection_stroke: Color32::from_rgb(59, 131, 181),
+                intersection_dot: Color32::from_rgb(7, 54, 66),
+                intersection_label_bg: Color32::from_rgb(255, 255, 230),
+                vertex_color: Color32::from_rgb(198, 140, 50),
+                root_color: Color32::from_rgb(0, 147, 100),
+                fill_alpha: 30,
+                egui_bg: Color32::from_rgb(253, 246, 227),
+                egui_text: Color32::from_rgb(7, 54, 66),
+                egui_button: Color32::from_rgb(232, 225, 207),
+                egui_button_hover: Color32::from_rgb(220, 213, 195),
+                egui_selected: Color32::from_rgb(200, 220, 230),
+                egui_accent: Color32::from_rgb(38, 139, 210),
+            },
+            ThemeKind::GitHubLight => Theme {
+                name: "GitHubLight",
+                // Чистый белый фон GitHub
+                canvas_bg: Color32::from_rgb(255, 255, 255),
+                frame_fill: Color32::from_rgb(246, 248, 250),
+                // Почти чёрный текст для максимальной контрастности
+                text_primary: Color32::from_rgb(31, 35, 40),
+                text_secondary: Color32::from_rgb(84, 95, 109),
+                // Светло-серая сетка
+                grid_color: Color32::from_rgba_unmultiplied(208, 215, 222, 120),
+                axis_color: Color32::from_rgb(140, 152, 165),
+                error_color: Color32::from_rgb(218, 54, 51),
+                error_bg: Color32::from_rgb(255, 235, 235),
+                status_info: Color32::from_rgb(22, 142, 78),
+                status_error: Color32::from_rgb(218, 54, 51),
+                selection_fill: Color32::from_rgb(224, 232, 255),
+                selection_stroke: Color32::from_rgb(9, 105, 218),
+                intersection_dot: Color32::from_rgb(31, 35, 40),
+                intersection_label_bg: Color32::from_rgb(255, 255, 255),
+                vertex_color: Color32::from_rgb(180, 140, 0),
+                root_color: Color32::from_rgb(22, 142, 78),
+                fill_alpha: 25,
+                egui_bg: Color32::from_rgb(255, 255, 255),
+                egui_text: Color32::from_rgb(31, 35, 40),
+                egui_button: Color32::from_rgb(224, 228, 232),
+                egui_button_hover: Color32::from_rgb(210, 215, 220),
+                egui_selected: Color32::from_rgb(224, 232, 255),
+                egui_accent: Color32::from_rgb(9, 105, 218),
             },
         }
     }
