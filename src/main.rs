@@ -189,6 +189,20 @@ mod app_tests {
     }
 
     #[test]
+    fn test_extract_coeffs_with_spaces() {
+        // Тест для формулы с пробелами: "4*x^2 + 3*x - 3"
+        let mut graph = GraphEntry::new("f1", Color32::RED, "4*x^2 + 3*x - 3");
+        assert!(graph.is_quadratic());
+        
+        let extracted = graph.extract_quadratic_coeffs();
+        assert!(extracted, "Коэффициенты должны извлечься");
+        
+        assert_eq!(graph.slider_a, 4.0, "a должно быть 4");
+        assert_eq!(graph.slider_b, 3.0, "b должно быть 3");
+        assert_eq!(graph.slider_c, -3.0, "c должно быть -3");
+    }
+
+    #[test]
     fn test_apply_sliders_updates_formula() {
         let mut graph = GraphEntry::new("f1", Color32::RED, "x^2");
         graph.slider_a = 2.0;

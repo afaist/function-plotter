@@ -311,9 +311,6 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
             g.style.visible = visible;
             g.style.label = label.clone();
             g.use_sliders = use_sliders;
-            g.slider_a = slider_a;
-            g.slider_b = slider_b;
-            g.slider_c = slider_c;
             g.is_editing = is_editing;
             // Обновляем parse_error из локальной переменной
             g.parse_error = parse_error.clone();
@@ -323,10 +320,15 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                 // Если нажата кнопка "Авто" — извлекаем коэффициенты из формулы
                 if need_auto_extract {
                     g.extract_quadratic_coeffs();
+                    // Обновляем локальные переменные слайдеров после извлечения
+                    slider_a = g.slider_a;
+                    slider_b = g.slider_b;
+                    slider_c = g.slider_c;
                 }
                 
-                // Если слайдеры включены и изменились — применяем формулу из слайдеров
-                if use_sliders && (slider_a != g.slider_a || slider_b != g.slider_b || slider_c != g.slider_c) {
+                // Сначала копируем значения из UI в g
+                let sliders_changed = use_sliders && (slider_a != g.slider_a || slider_b != g.slider_b || slider_c != g.slider_c);
+                if sliders_changed {
                     g.slider_a = slider_a;
                     g.slider_b = slider_b;
                     g.slider_c = slider_c;
@@ -342,6 +344,11 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                     parse_error = g.parse_error.clone();
                     any_reparse = true;
                 }
+                
+                // Копируем актуальные значения слайдеров обратно
+                g.slider_a = slider_a;
+                g.slider_b = slider_b;
+                g.slider_c = slider_c;
             }
         }
         // Сохраняем снимок при изменении формулы или видимости

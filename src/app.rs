@@ -173,38 +173,43 @@ impl GraphEntry {
         let b = self.slider_b;
         let c = self.slider_c;
         
+        // Округляем до 10 знаков для точности
+        let a = (a * 10000000000.0).round() / 10000000000.0;
+        let b = (b * 10000000000.0).round() / 10000000000.0;
+        let c = (c * 10000000000.0).round() / 10000000000.0;
+        
         // Формируем формулу: ax² + bx + c
         let mut formula = String::new();
         
         // a*x^2
-        if a == 1.0 {
+        if (a - 1.0).abs() < 1e-10 {
             formula.push_str("x^2");
-        } else if a == -1.0 {
+        } else if (a + 1.0).abs() < 1e-10 {
             formula.push_str("-x^2");
         } else {
             formula.push_str(&format!("{a}*x^2"));
         }
         
         // + b*x
-        if b > 0.0 {
-            if b == 1.0 {
+        if b > 1e-10 {
+            if (b - 1.0).abs() < 1e-10 {
                 formula.push_str(" + x");
             } else {
                 formula.push_str(&format!(" + {b}*x"));
             }
-        } else if b < 0.0 {
-            if b == -1.0 {
+        } else if b < -1e-10 {
+            if (b + 1.0).abs() < 1e-10 {
                 formula.push_str(" - x");
             } else {
-                formula.push_str(&format!(" - {:.1}*x", b.abs()));
+                formula.push_str(&format!(" - {b_abs}*x", b_abs = (-b).abs()));
             }
         }
         
         // + c
-        if c > 0.0 {
+        if c > 1e-10 {
             formula.push_str(&format!(" + {c}"));
-        } else if c < 0.0 {
-            formula.push_str(&format!(" - {:.1}", c.abs()));
+        } else if c < -1e-10 {
+            formula.push_str(&format!(" - {c_abs}", c_abs = (-c).abs()));
         }
         
         if formula.is_empty() {
@@ -258,86 +263,21 @@ impl GraphEntry {
         }
         
         let text = self.formula_text.trim().to_lowercase();
+        let terms = self.split_terms(&text);
         
-        // Парсим a (коэффициент при x^2)
-        let a = if text.starts_with("-x^2") {
-            -1.0
-        } else if text.starts_with("x^2") {
-            1.0
-        } else if let Some(rest) = text.strip_prefix('-') {
-            if let Some(num_str) = rest.split_once('*').map(|(n, _)| n) {
-                num_str.parse::<f64>().unwrap_or(1.0) * -1.0
-            } else {
-                -1.0
-            }
-        } else if let Some(num_str) = text.split_once('*').map(|(n, _)| n) {
-            num_str.parse::<f64>().unwrap_or(1.0)
-        } else {
-            1.0
-        };
+        let mut a = 0.0;
+        let mut b = 0.0;
+        let mut c = 0.0;
         
-        // Парсим b (коэффициент при x) — ищем + b*x или - b*x после x^2
-        let b = {
-            let after_x2 = &text[text.find("x^2").unwrap_or(text.len()) + 3..];
-            let after_x2 = after_x2.trim_start();
-            
-            if let Some(rest) = after_x2.strip_prefix('+') {
-                let rest = rest.trim_start();
-                if let Some(num_str) = rest.split_once('*').map(|(n, _)| n) {
-                    num_str.parse::<f64>().unwrap_or(1.0)
-                } else if rest.starts_with("x") {
-                    1.0
-                } else {
-                    0.0
-                }
-            } else if let Some(rest) = after_x2.strip_prefix('-') {
-                let rest = rest.trim_start();
-                if let Some(num_str) = rest.split_once('*').map(|(n, _)| n) {
-                    -(num_str.parse::<f64>().unwrap_or(1.0))
-                } else if rest.starts_with("x") {
-                    -1.0
-                } else {
-                    0.0
-                }
-            } else {
-                0.0
+        for term in &terms {
+            if term.contains("x^2") {
+                a = self.parse_coeff(term, "x^2");
+            } else if term.contains("x") {
+                b = self.parse_coeff(term, "x");
+            } else if let Ok(val) = term.parse::<f64>() {
+                c = val;
             }
-        };
-        
-        // Парсим c (свободный член) — число после последнего + или -
-        let c = {
-            let text = text.trim();
-            let mut result = 0.0;
-            
-            // Ищем последнее число (не связанное с x)
-            // Разбиваем по "+" и "-", но пропускаем те, что перед x
-            let mut last_sign_pos = None;
-            let mut last_sign_is_minus = false;
-            
-            for (i, _) in text.char_indices() {
-                let ch = text[i..].chars().next().unwrap();
-                if ch == '+' || ch == '-' {
-                    // Проверяем, что это не начало строки и не после ^
-                    if i > 0 {
-                        let before_char = text.chars().nth(i - 1).unwrap();
-                        if before_char != '^' {
-                            last_sign_pos = Some(i);
-                            last_sign_is_minus = (ch == '-');
-                        }
-                    }
-                }
-            }
-            
-            if let Some(pos) = last_sign_pos {
-                let after = &text[pos + 1..];
-                let after = after.trim();
-                if let Ok(val) = after.parse::<f64>() {
-                    result = if last_sign_is_minus { -val } else { val };
-                }
-            }
-            
-            result
-        };
+        }
         
         self.slider_a = a;
         self.slider_b = b;
@@ -345,6 +285,74 @@ impl GraphEntry {
         self.use_sliders = true;
         
         true
+    }
+
+    /// Разбить формулу на слагаемые, сохраняя знаки
+    fn split_terms(&self, text: &str) -> Vec<String> {
+        let mut terms = Vec::new();
+        let mut current = String::new();
+        let mut chars = text.chars().peekable();
+        
+        while let Some(ch) = chars.next() {
+            if ch == '+' || ch == '-' {
+                if !current.is_empty() {
+                    terms.push(current.clone());
+                }
+                current = ch.to_string();
+            } else if ch == ' ' {
+                // Пропускаем пробелы
+                continue;
+            } else {
+                current.push(ch);
+            }
+        }
+        
+        if !current.is_empty() {
+            terms.push(current);
+        }
+        
+        terms
+    }
+
+    /// Извлечь коэффициент перед данным суффиксом
+    /// "2*x^2" + "x^2" → 2, "-x^2" + "x^2" → -1, "x^2" + "x^2" → 1
+    fn parse_coeff(&self, term: &str, suffix: &str) -> f64 {
+        let term = term.trim();
+        
+        // Убираем знак + или -
+        let (sign, rest) = if term.starts_with('-') {
+            (-1.0, &term[1..])
+        } else if term.starts_with('+') {
+            (1.0, &term[1..])
+        } else {
+            (1.0, term)
+        };
+        
+        // Убираем суффикс
+        let rest = if let Some(pos) = rest.find(suffix) {
+            &rest[..pos]
+        } else {
+            return 0.0;
+        };
+        
+        let rest = rest.trim();
+        
+        if rest.is_empty() || rest == "*" {
+            return sign; // "-x^2" или "x^2" → 1 или -1
+        }
+        
+        // Убираем '*' если остался (например "2*" → "2")
+        let rest = rest.strip_suffix('*').unwrap_or(rest).trim();
+        
+        if rest.is_empty() {
+            return sign;
+        }
+        
+        if let Ok(val) = rest.parse::<f64>() {
+            return sign * val;
+        }
+        
+        sign // Если не удалось распарсить число, считаем 1
     }
 
     /// Пометить график как требующий пересчёта.
