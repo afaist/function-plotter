@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 /// Константа версии формата конфигурации.
-pub const CONFIG_VERSION: u32 = 2;
+pub const CONFIG_VERSION: u32 = 3;
 
 /// Дефолтные значения конфигурации.
 pub const DEFAULT_WINDOW_WIDTH: f64 = 1000.0;
@@ -19,6 +19,7 @@ pub struct AppConfig {
     pub window_height: f64,
     pub auto_load_last_session: bool,
     pub last_session_path: Option<String>,
+    pub theme: String,
 }
 
 impl Default for AppConfig {
@@ -29,6 +30,7 @@ impl Default for AppConfig {
             window_height: DEFAULT_WINDOW_HEIGHT,
             auto_load_last_session: DEFAULT_AUTO_LOAD,
             last_session_path: None,
+            theme: "dark".to_string(),
         }
     }
 }
@@ -60,6 +62,10 @@ impl AppConfig {
                     // Forward compatibility: если версия старая, обновляем
                     if config.version < CONFIG_VERSION {
                         config.version = CONFIG_VERSION;
+                        // Миграция v2 -> v3: добавляем theme по умолчанию
+                        if config.theme.is_empty() {
+                            config.theme = "dark".to_string();
+                        }
                         // Сохраняем обновлённую версию
                         let _ = config.save();
                     }
@@ -102,6 +108,9 @@ impl AppConfig {
                 Ok(mut config) => {
                     if config.version < CONFIG_VERSION {
                         config.version = CONFIG_VERSION;
+                        if config.theme.is_empty() {
+                            config.theme = "dark".to_string();
+                        }
                     }
                     config
                 }

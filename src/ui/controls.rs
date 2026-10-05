@@ -10,6 +10,7 @@ use crate::export;
 use crate::export::{save_dialog};
 use crate::parser::ParsedFormula;
 use crate::renderer::Viewport;
+use crate::theme::Theme;
 
 /// Отрисовка одной записи графика в левой панели.
 /// Возвращает true, если были изменения.
@@ -34,6 +35,7 @@ fn render_graph_entry(
     need_auto_extract: &mut bool,
     need_reparse: &mut bool,
     is_editing: &mut bool,
+    theme: &Theme,
 ) -> bool {
     let mut changed = false;
     
@@ -132,10 +134,10 @@ fn render_graph_entry(
             ui.painter().rect_stroke(
                 text_output.response.rect,
                 4.0,
-                egui::Stroke::new(1.5_f32, Color32::from_rgb(255, 80, 80)),
+                egui::Stroke::new(1.5_f32, theme.error_color),
                 egui::StrokeKind::Inside,
             );
-            ui.colored_label(Color32::from_rgb(255, 100, 100), err);
+            ui.colored_label(theme.error_bg, err);
         }
     }
 
@@ -170,6 +172,8 @@ fn render_graph_entry(
 
 /// Отрисовка левой панели управления.
 pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
+    let theme = app.current_theme.resolve(ui.ctx());
+    
     ui.heading("Графики");
     ui.add_space(4.0);
 
@@ -249,7 +253,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         ui.push_id(i, |ui| {
             if app.selected_graph == Some(i) {
                 let frame = egui::Frame {
-                    fill: Color32::from_rgb(40, 40, 50),
+                    fill: theme.frame_fill,
                     stroke: egui::Stroke::new(1.5_f32, color),
                     ..Default::default()
                 };
@@ -275,6 +279,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                         &mut need_auto_extract,
                         &mut need_reparse,
                         &mut is_editing,
+                        &theme,
                     );
                 });
             } else {
@@ -299,6 +304,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                     &mut need_auto_extract,
                     &mut need_reparse,
                     &mut is_editing,
+                    &theme,
                 );
             }
         });
@@ -539,6 +545,28 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     // Статус-бар
     show_status_bar(app, ui);
 
+    // Переключатель темы
+    ui.add_space(8.0);
+    ui.separator();
+    ui.horizontal(|ui| {
+        ui.label("Тема:");
+        let current = app.current_theme.to_string();
+        let mut selected = current;
+        egui::ComboBox::from_id_salt("theme_combo")
+            .selected_text(current)
+            .show_ui(ui, |ui| {
+                for theme in crate::theme::ThemeKind::all() {
+                    ui.selectable_value(&mut selected, theme.to_string(), theme.to_string());
+                }
+            });
+        if selected != current {
+            if let Some(theme_kind) = crate::theme::ThemeKind::from_string(&selected) {
+                app.set_theme(theme_kind);
+                ui.ctx().request_repaint();
+            }
+        }
+    });
+
     // Кнопки помощи
     ui.add_space(8.0);
     ui.separator();
@@ -740,7 +768,7 @@ pub fn render_help_content(ui: &mut Ui) {
 }
 
 /// Содержимое окна "О программе".
-pub fn render_about_content(ui: &mut Ui) {
+pub fn render_about_content(ui: &mut Ui, _current_theme: &crate::theme::ThemeKind) {
     ui.heading("Function Plotter");
     ui.label(format!("Версия: {}", env!("CARGO_PKG_VERSION")));
     ui.add_space(4.0);
@@ -854,7 +882,11 @@ fn show_session_ui(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui) {
 /// Статус-бар с автоматическим затуханием.
 fn show_status_bar(app: &mut PlotApp, ui: &mut Ui) {
     if let Some(ref msg) = app.status_msg {
-        let color = msg.color();
+        let theme = app.current_theme.resolve(ui.ctx());
+        let color = match msg {
+            StatusMessage::Info(_) => theme.status_info,
+            StatusMessage::Error(_) => theme.status_error,
+        };
         ui.add_space(4.0);
         ui.colored_label(color, msg.text());
 

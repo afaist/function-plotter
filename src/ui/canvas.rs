@@ -1,6 +1,6 @@
 //! Центральная область: холст для отрисовки графиков, pan/zoom, легенда.
 
-use egui::{pos2, Color32, Context, Rect, Sense, Stroke, Ui, Vec2};
+use egui::{pos2, Context, Rect, Sense, Stroke, Ui, Vec2};
 
 use crate::app::PlotApp;
 use crate::renderer;
@@ -66,12 +66,13 @@ pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
 
     // Отрисовка
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 0.0, Color32::from_rgb(30, 30, 35));
+    let theme = app.current_theme.resolve(ui.ctx());
+    painter.rect_filled(rect, 0.0, theme.canvas_bg);
 
     if app.polar_mode {
-        renderer::draw_polar_grid(&painter, rect, &app.viewport);
+        renderer::draw_polar_grid(&painter, rect, &app.viewport, &theme);
     } else {
-        renderer::draw_axes(&painter, rect, &app.viewport);
+        renderer::draw_axes(&painter, rect, &app.viewport, &theme);
     }
 
     for g in &app.graphs {
@@ -94,21 +95,11 @@ pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                     &app.viewport,
                     &data.fill_points,
                     &g.style,
+                    &theme,
                 );
             }
         }
     }
-
-    // Школьная сетка 1:1
-    if app.school_grid {
-        draw_school_grid(&painter, rect, &app.viewport);
-    }
-
-    // Легенда
-    draw_legend(&painter, rect, &app.graphs);
-
-    // Точки пересечения
-    draw_intersections(&painter, rect, &app.viewport, &app.graphs);
 
     // Вершина и корни для каждого графика
     for g in &app.graphs {
@@ -121,18 +112,30 @@ pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                     data.vertex,
                     &data.roots,
                     &g.style,
+                    &theme,
                 );
             }
         }
     }
 
+    // Школьная сетка 1:1
+    if app.school_grid {
+        draw_school_grid(&painter, rect, &app.viewport, &theme);
+    }
+
+    // Легенда
+    draw_legend(&painter, rect, &app.graphs, &theme);
+
+    // Точки пересечения
+    draw_intersections(&painter, rect, &app.viewport, &app.graphs, &theme);
+
     // Координаты мыши
-    draw_mouse_coords(ui, &painter, rect, &app.viewport);
+    draw_mouse_coords(ui, &painter, rect, &app.viewport, &theme);
 }
 
 /// Отрисовка школьной сетки 1:1 (клетка = 1 единица).
-fn draw_school_grid(painter: &egui::Painter, rect: Rect, viewport: &crate::renderer::Viewport) {
-    let grid_color = Color32::from_rgba_unmultiplied(100, 100, 100, 80);
+fn draw_school_grid(painter: &egui::Painter, rect: Rect, viewport: &crate::renderer::Viewport, theme: &crate::theme::Theme) {
+    let grid_color = theme.grid_color;
     let stroke = Stroke::new(0.5_f32, grid_color);
 
     // Определяем границы сетки
@@ -156,7 +159,7 @@ fn draw_school_grid(painter: &egui::Painter, rect: Rect, viewport: &crate::rende
     }
 
     // Подписи осей
-    let text_color = Color32::from_gray(180);
+    let text_color = theme.text_secondary;
     for x in x_min..=x_max {
         if x % 5 == 0 && x != 0 {
             let pos = viewport.math_to_screen(x as f64, 0.0, rect);
@@ -188,7 +191,7 @@ fn draw_school_grid(painter: &egui::Painter, rect: Rect, viewport: &crate::rende
 }
 
 /// Отрисовка легенды (список видимых графиков).
-fn draw_legend(painter: &egui::Painter, rect: Rect, graphs: &[crate::app::GraphEntry]) {
+fn draw_legend(painter: &egui::Painter, rect: Rect, graphs: &[crate::app::GraphEntry], theme: &crate::theme::Theme) {
     let mut legend_y = rect.top() + 8.0;
     for g in graphs {
         if g.style.visible {
@@ -202,7 +205,7 @@ fn draw_legend(painter: &egui::Painter, rect: Rect, graphs: &[crate::app::GraphE
                 egui::Align2::LEFT_TOP,
                 &g.style.label,
                 egui::FontId::proportional(12.0),
-                Color32::from_gray(200),
+                theme.text_primary,
             );
             legend_y += 18.0;
         }
@@ -215,6 +218,7 @@ fn draw_mouse_coords(
     painter: &egui::Painter,
     rect: Rect,
     viewport: &crate::renderer::Viewport,
+    theme: &crate::theme::Theme,
 ) {
     if let Some(hover_pos) = ui.input(|i| i.pointer.hover_pos()) {
         if hover_pos.x >= rect.left()
@@ -229,7 +233,7 @@ fn draw_mouse_coords(
                 egui::Align2::LEFT_TOP,
                 label,
                 egui::FontId::monospace(12.0),
-                Color32::from_gray(200),
+                theme.text_primary,
             );
         }
     }
@@ -241,6 +245,7 @@ fn draw_intersections(
     rect: Rect,
     viewport: &crate::renderer::Viewport,
     graphs: &[crate::app::GraphEntry],
+    theme: &crate::theme::Theme,
 ) {
     let visible: Vec<&crate::app::GraphEntry> = graphs
         .iter()
@@ -304,8 +309,8 @@ fn draw_intersections(
     // Отрисовка всех найденных точек
     for (ix, iy) in &found {
         let screen_pos = viewport.math_to_screen(*ix, *iy, rect);
-        // Маленькая белая точка с обводкой (радиус 2.5)
-        painter.circle_filled(screen_pos, 2.5, egui::Color32::WHITE);
+        // Маленькая точка с обводкой (радиус 2.5)
+        painter.circle_filled(screen_pos, 2.5, theme.intersection_dot);
         painter.circle_stroke(
             screen_pos,
             2.5,
@@ -318,7 +323,7 @@ fn draw_intersections(
             egui::Align2::LEFT_TOP,
             label,
             egui::FontId::monospace(10.0),
-            Color32::from_rgb(255, 255, 100),
+            theme.intersection_label_bg,
         );
     }
 }

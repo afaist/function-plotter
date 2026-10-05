@@ -6,6 +6,7 @@ mod parser;
 mod renderer;
 mod session;
 mod templates;
+pub mod theme;
 mod ui;
 
 use std::path::PathBuf;
@@ -241,6 +242,10 @@ fn main() -> eframe::Result {
             if let Some(ref path_str) = config.last_session_path {
                 app.last_session_path = Some(PathBuf::from(path_str));
             }
+
+            // Инициализируем тему из config
+            app.current_theme = theme::ThemeKind::from_string(&config.theme)
+                .unwrap_or(theme::ThemeKind::Dark);
 
             // Восстанавливаем размер окна из config
             app.restore_window_size();

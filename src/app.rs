@@ -9,6 +9,7 @@ use crate::export::save_rect_to_png;
 use crate::parser::{self, ParsedFormula};
 use crate::renderer::{PlotStyle, Viewport};
 use crate::session;
+use crate::theme::ThemeKind;
 
 /// Сообщение в статус-баре с автоматическим затуханием.
 #[derive(Clone, Debug)]
@@ -22,13 +23,6 @@ impl StatusMessage {
         match self {
             Self::Info(s) => s,
             Self::Error(s) => s,
-        }
-    }
-
-    pub fn color(&self) -> Color32 {
-        match self {
-            Self::Info(_) => Color32::from_rgb(100, 255, 100),
-            Self::Error(_) => Color32::from_rgb(255, 100, 100),
         }
     }
 }
@@ -435,6 +429,8 @@ pub struct PlotApp {
     pub save_path: Option<PathBuf>,
     /// Школьная сетка 1:1 (клетка = 1 единица)
     pub school_grid: bool,
+    /// Текущая тема оформления
+    pub current_theme: ThemeKind,
 }
 
 impl Default for PlotApp {
@@ -476,6 +472,7 @@ impl Default for PlotApp {
             graph_rect: None,
             save_path: None,
             school_grid: false,
+            current_theme: ThemeKind::Dark,
         };
         app.graphs.push(GraphEntry::new(
             "f1",
@@ -751,6 +748,32 @@ impl PlotApp {
         // Эта функция оставлена для обратной совместимости
         let _ = ui;
     }
+
+    /// Применить тему к egui Context.
+    pub fn apply_theme(&self, ctx: &egui::Context) {
+        let theme = self.current_theme.resolve(ctx);
+        let mut style = egui::Style::default();
+        style.visuals.extreme_bg_color = theme.egui_bg;
+        style.visuals.override_text_color = Some(theme.egui_text);
+        style.visuals.window_fill = theme.egui_bg;
+        style.visuals.panel_fill = theme.egui_bg;
+        
+        // egui 0.36.x: стили привязаны к теме (Dark/Light)
+        let egui_theme = if theme.egui_bg.r() < 128 {
+            egui::Theme::Dark
+        } else {
+            egui::Theme::Light
+        };
+        ctx.set_style_of(egui_theme, style);
+    }
+
+    /// Установить новую тему и сохранить в конфиг.
+    pub fn set_theme(&mut self, theme: ThemeKind) {
+        self.current_theme = theme.clone();
+        let mut config = config::AppConfig::load();
+        config.theme = theme.to_string().to_lowercase();
+        let _ = config.save();
+    }
 }
 
 /// Данные для таблицы значений.
@@ -825,6 +848,9 @@ fn render_values_table_ui(
 impl eframe::App for PlotApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        
+        // Применяем тему в начале каждого кадра
+        self.apply_theme(&ctx);
         
         // --- Запрос на сохранение сессии при выходе ---
         // 1. Проверяем, нажал ли пользователь на крестик окна
@@ -1028,13 +1054,19 @@ impl eframe::App for PlotApp {
                 crate::ui::controls::render_help_content(ui);
             });
 
+        // Для окна "О программе" — извлекаем current_theme до borrow
+        let current_theme = self.current_theme;
         egui::Window::new("О программе")
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .resizable(false)
             .open(&mut self.show_about_window)
             .show(&ctx, |ui| {
-                crate::ui::controls::render_about_content(ui);
+                crate::ui::controls::render_about_content(ui, &current_theme);
             });
+        // Применяем тему после закрытия окна
+        if self.show_about_window {
+            // Тема применяется автоматически через apply_theme() в начале ui()
+        }
 
         // Окно таблицы значений
         egui::Window::new("Таблица значений")
@@ -1111,11 +1143,12 @@ mod tests {
         let config_path = temp_dir.join(format!("config{}.json", suffix));
         
         let config = AppConfig {
-            version: 2,
+            version: 3,
             window_width: width,
             window_height: height,
             auto_load_last_session: false,
             last_session_path: None,
+            theme: "dark".to_string(),
         };
         if let Err(e) = config.save_to(&config_path) {
             eprintln!("Warning: Could not save config: {e}");
@@ -1140,11 +1173,12 @@ mod tests {
         
         // Создаём config с нужным размером
         let config = AppConfig {
-            version: 2,
+            version: 3,
             window_width: 1200.0,
             window_height: 800.0,
             auto_load_last_session: false,
             last_session_path: None,
+            theme: "dark".to_string(),
         };
         config.save_to(&config_path).ok();
         

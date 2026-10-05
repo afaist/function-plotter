@@ -1,6 +1,7 @@
 use egui::{Color32, Painter, Pos2, Rect, Stroke, Vec2};
 
 use crate::parser::FormulaType;
+use crate::theme::Theme;
 
 /// Настройки отображения для одного графика.
 #[derive(Clone)]
@@ -108,6 +109,7 @@ pub fn draw_filled_curve(
     viewport: &Viewport,
     fill_points: &[(f64, f64)],
     style: &PlotStyle,
+    theme: &Theme,
 ) {
     if fill_points.len() < 2 {
         return;
@@ -117,7 +119,7 @@ pub fn draw_filled_curve(
     let r = style.color.r();
     let g = style.color.g();
     let b = style.color.b();
-    let fill_color = egui::Color32::from_rgba_premultiplied(r, g, b, 38); // 0.15 * 255 ≈ 38
+    let fill_color = egui::Color32::from_rgba_premultiplied(r, g, b, theme.fill_alpha);
 
     let mut polygon: Vec<Pos2> = Vec::with_capacity(fill_points.len() + 2);
 
@@ -164,11 +166,12 @@ pub fn draw_special_points(
     vertex: Option<(f64, f64)>,
     roots: &[f64],
     _style: &PlotStyle,
+    theme: &Theme,
 ) {
-    // Цвет для вершины — жёлтый
-    let vertex_color = Color32::from_rgb(255, 255, 100);
-    // Цвет для корней — зелёный
-    let root_color = Color32::from_rgb(100, 255, 100);
+    // Цвет для вершины — из темы
+    let vertex_color = theme.vertex_color;
+    // Цвет для корней — из темы
+    let root_color = theme.root_color;
     let radius = 5.0_f32;
 
     // Рисуем вершину
@@ -348,10 +351,10 @@ fn draw_dashed_line(painter: &Painter, points: &[Pos2], stroke: Stroke, dash: (f
 }
 
 /// Отрисовка осей координат и сетки.
-pub fn draw_axes(painter: &Painter, rect: Rect, viewport: &Viewport) {
-    let axis_color = Color32::from_gray(120);
-    let grid_color = Color32::from_gray(40);
-    let text_color = Color32::from_gray(180);
+pub fn draw_axes(painter: &Painter, rect: Rect, viewport: &Viewport, theme: &Theme) {
+    let axis_color = theme.axis_color;
+    let grid_color = theme.grid_color;
+    let text_color = theme.text_primary;
 
     // Базовое число делений — можно менять, если хочется больше/меньше линий
     let base_grid_count = 8;
@@ -485,10 +488,10 @@ pub fn format_coord(val: f64, step: f64) -> String {
 }
 
 /// Отрисовка полярной сетки (круги + лучи).
-pub fn draw_polar_grid(painter: &Painter, rect: Rect, viewport: &Viewport) {
-    let grid_color = Color32::from_gray(60);
-    let axis_color = Color32::from_gray(120);
-    let text_color = Color32::from_gray(180);
+pub fn draw_polar_grid(painter: &Painter, rect: Rect, viewport: &Viewport, theme: &Theme) {
+    let grid_color = theme.grid_color;
+    let axis_color = theme.axis_color;
+    let text_color = theme.text_primary;
 
     // Определяем максимальный радиус в математических координатах
     let max_radius = (viewport.x_max.abs().max(viewport.x_min.abs())
