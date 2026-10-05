@@ -152,35 +152,36 @@ impl PlotData {
         if formula.formula_type() == FormulaType::Regular && !points.is_empty() {
             // Ищем вершину и корни среди вычисленных точек
             // Вершина — точка с минимальным y
-            if let Some((v_x, v_y)) = points.iter()
+            if let Some((v_x, v_y)) = points
+                .iter()
                 .filter(|(_, y)| y.is_finite())
                 .min_by(|a, b| a.1.partial_cmp(&b.1).expect("finite y values"))
             {
                 vertex = Some((*v_x, *v_y));
             }
-            
+
             // Корни — ищем смену знака между соседними точками (метод бисекции)
             let mut last_root_x: Option<f64> = None;
             for i in 0..points.len().saturating_sub(1) {
                 let (x1, y1) = points[i];
                 let (x2, y2) = points[i + 1];
-                
+
                 if !y1.is_finite() || !y2.is_finite() {
                     continue;
                 }
-                
+
                 // Смена знака — корень между x1 и x2
                 if (y1 <= 0.0 && y2 > 0.0) || (y1 > 0.0 && y2 <= 0.0) {
                     // Линейная интерполяция для точного значения
                     let root_x = x1 - y1 * (x2 - x1) / (y2 - y1);
-                    
+
                     // Проверяем, чтобы не добавлять дубликаты (корни дальше 0.5 по x)
                     if let Some(last) = last_root_x {
                         if (root_x - last).abs() < 0.5 {
                             continue;
                         }
                     }
-                    
+
                     last_root_x = Some(root_x);
                     roots.push(root_x);
                 }
@@ -435,17 +436,23 @@ mod tests {
         // Производная sin(x) = cos(x)
         let formula = parser::parse("deriv(sin(x))").unwrap();
         let data = PlotData::compute(&formula, 0.0, 1.0, 11);
-        
+
         // Проверяем несколько точек
         for i in 0..data.points.len() {
             let x = data.points[i].0;
             let y = data.points[i].1;
             let expected = x.cos(); // cos(x)
-            
+
             if y.is_finite() {
                 let error = (y - expected).abs();
-                assert!(error < 1e-10, "При x={:.4}: got {:.10}, expected {:.10}, error={:.2e}",
-                    x, y, expected, error);
+                assert!(
+                    error < 1e-10,
+                    "При x={:.4}: got {:.10}, expected {:.10}, error={:.2e}",
+                    x,
+                    y,
+                    expected,
+                    error
+                );
             }
         }
     }
@@ -455,16 +462,22 @@ mod tests {
         // Производная 3x^2 + 2x = 6x + 2
         let formula = parser::parse("deriv(3*x^2 + 2*x)").unwrap();
         let data = PlotData::compute(&formula, 0.0, 5.0, 21);
-        
+
         for i in 0..data.points.len() {
             let x = data.points[i].0;
             let y = data.points[i].1;
             let expected = 6.0 * x + 2.0;
-            
+
             if y.is_finite() {
                 let error = (y - expected).abs();
-                assert!(error < 1e-8, "При x={:.4}: got {:.10}, expected {:.10}, error={:.2e}",
-                    x, y, expected, error);
+                assert!(
+                    error < 1e-8,
+                    "При x={:.4}: got {:.10}, expected {:.10}, error={:.2e}",
+                    x,
+                    y,
+                    expected,
+                    error
+                );
             }
         }
     }
@@ -474,16 +487,22 @@ mod tests {
         // Производная e^x = e^x
         let formula = parser::parse("deriv(exp(x))").unwrap();
         let data = PlotData::compute(&formula, 0.0, 1.0, 11);
-        
+
         for i in 0..data.points.len() {
             let x = data.points[i].0;
             let y = data.points[i].1;
             let expected = x.exp();
-            
+
             if y.is_finite() {
                 let error = (y - expected).abs();
-                assert!(error < 1e-9, "При x={:.4}: got {:.10}, expected {:.10}, error={:.2e}",
-                    x, y, expected, error);
+                assert!(
+                    error < 1e-9,
+                    "При x={:.4}: got {:.10}, expected {:.10}, error={:.2e}",
+                    x,
+                    y,
+                    expected,
+                    error
+                );
             }
         }
     }
@@ -493,16 +512,22 @@ mod tests {
         // ∫₀^x t² dt = x³/3
         let formula = parser::parse("integral(x^2, 0, 1)").unwrap();
         let data = PlotData::compute(&formula, 0.0, 1.0, 21);
-        
+
         for i in 0..data.points.len() {
             let x = data.points[i].0;
             let y = data.points[i].1;
             let expected = x * x * x / 3.0;
-            
+
             if y.is_finite() {
                 let error = (y - expected).abs();
-                assert!(error < 1e-6, "При x={:.4}: got {:.10}, expected {:.10}, error={:.2e}",
-                    x, y, expected, error);
+                assert!(
+                    error < 1e-6,
+                    "При x={:.4}: got {:.10}, expected {:.10}, error={:.2e}",
+                    x,
+                    y,
+                    expected,
+                    error
+                );
             }
         }
     }
@@ -512,16 +537,22 @@ mod tests {
         // ∫₀^x cos(t) dt = sin(x)
         let formula = parser::parse("integral(cos(x), 0, 1)").unwrap();
         let data = PlotData::compute(&formula, 0.0, std::f64::consts::PI, 51);
-        
+
         for i in 0..data.points.len() {
             let x = data.points[i].0;
             let y = data.points[i].1;
             let expected = x.sin();
-            
+
             if y.is_finite() {
                 let error = (y - expected).abs();
-                assert!(error < 1e-5, "При x={:.4}: got {:.10}, expected {:.10}, error={:.2e}",
-                    x, y, expected, error);
+                assert!(
+                    error < 1e-5,
+                    "При x={:.4}: got {:.10}, expected {:.10}, error={:.2e}",
+                    x,
+                    y,
+                    expected,
+                    error
+                );
             }
         }
     }
@@ -531,16 +562,22 @@ mod tests {
         // ∫₀^x e^t dt = e^x - 1
         let formula = parser::parse("integral(exp(x), 0, 1)").unwrap();
         let data = PlotData::compute(&formula, 0.0, 1.0, 21);
-        
+
         for i in 0..data.points.len() {
             let x = data.points[i].0;
             let y = data.points[i].1;
             let expected = x.exp() - 1.0;
-            
+
             if y.is_finite() {
                 let error = (y - expected).abs();
-                assert!(error < 1e-5, "При x={:.4}: got {:.10}, expected {:.10}, error={:.2e}",
-                    x, y, expected, error);
+                assert!(
+                    error < 1e-5,
+                    "При x={:.4}: got {:.10}, expected {:.10}, error={:.2e}",
+                    x,
+                    y,
+                    expected,
+                    error
+                );
             }
         }
     }
@@ -550,12 +587,14 @@ mod tests {
         // Для линейной функции адаптивный алгоритм должен дать минимальное количество точек
         let formula = parser::parse("2*x + 3").unwrap();
         let adaptive = PlotData::compute_adaptive(&formula, 0.0, 10.0, 10, 0.01);
-        
+
         // Линейная функция — максимум 3 точки (концы + середина, если нужно)
-        assert!(adaptive.points.len() <= 5,
+        assert!(
+            adaptive.points.len() <= 5,
             "Для линейной функции адаптивный алгоритм дал {} точек (ожидается <= 5)",
-            adaptive.points.len());
-        
+            adaptive.points.len()
+        );
+
         // Точки должны покрывать весь диапазон
         let first_x = adaptive.points.first().unwrap().0;
         let last_x = adaptive.points.last().unwrap().0;
@@ -568,14 +607,20 @@ mod tests {
         // Для x^2 адаптивный алгоритм должен точно воспроизвести кривую
         let formula = parser::parse("x^2").unwrap();
         let adaptive = PlotData::compute_adaptive(&formula, 0.0, 5.0, 10, 0.01);
-        
+
         // Проверяем, что точки лежат на кривой y = x^2
         for (x, y) in &adaptive.points {
             if y.is_finite() {
                 let expected = x * x;
                 let error = (y - expected).abs();
-                assert!(error < 0.1, "При x={:.4}: got {:.4}, expected {:.4}, error={:.4}",
-                    x, y, expected, error);
+                assert!(
+                    error < 0.1,
+                    "При x={:.4}: got {:.4}, expected {:.4}, error={:.4}",
+                    x,
+                    y,
+                    expected,
+                    error
+                );
             }
         }
     }
@@ -584,21 +629,32 @@ mod tests {
     fn test_adaptive_vs_uniform_efficiency() {
         // Адаптивный алгоритм должен использовать меньше точек для гладких функций
         let formula = parser::parse("sin(x)").unwrap();
-        
+
         let uniform = PlotData::compute(&formula, 0.0, std::f64::consts::PI, 100);
         let adaptive = PlotData::compute_adaptive(&formula, 0.0, std::f64::consts::PI, 10, 0.01);
-        
+
         // Адаптивный должен дать меньше точек
-        assert!(adaptive.points.len() < uniform.points.len(),
+        assert!(
+            adaptive.points.len() < uniform.points.len(),
             "Адаптивный: {} точек, равномерный: {} точек",
-            adaptive.points.len(), uniform.points.len());
-        
+            adaptive.points.len(),
+            uniform.points.len()
+        );
+
         // Но обе должны примерно совпадать по значениям
         let uniform_last = uniform.points.last().unwrap().1;
         let adaptive_last = adaptive.points.last().unwrap().1;
-        
-        assert!(uniform_last.abs() < 0.1, "Равномерный: sin(PI) = {:.6}", uniform_last);
-        assert!(adaptive_last.abs() < 0.1, "Адаптивный: sin(PI) = {:.6}", adaptive_last);
+
+        assert!(
+            uniform_last.abs() < 0.1,
+            "Равномерный: sin(PI) = {:.6}",
+            uniform_last
+        );
+        assert!(
+            adaptive_last.abs() < 0.1,
+            "Адаптивный: sin(PI) = {:.6}",
+            adaptive_last
+        );
     }
 
     #[test]
@@ -606,11 +662,13 @@ mod tests {
         // Для высокочастотной функции адаптивный алгоритм должен добавить больше точек
         let formula = parser::parse("sin(10*x)").unwrap();
         let adaptive = PlotData::compute_adaptive(&formula, 0.0, 1.0, 15, 0.0001);
-        
+
         // Должно быть много точек для высокочастотной функции
-        assert!(adaptive.points.len() > 50,
+        assert!(
+            adaptive.points.len() > 50,
             "Для высокочастотной функции ожидалось > 50 точек, получено {}",
-            adaptive.points.len());
+            adaptive.points.len()
+        );
     }
 
     #[test]
@@ -618,15 +676,20 @@ mod tests {
         // Тест производной cos(x) в нескольких точках
         let formula = parser::parse("deriv(sin(x))").unwrap();
         let data = PlotData::compute(&formula, -std::f64::consts::PI, std::f64::consts::PI, 101);
-        
+
         // Проверяем все точки в данных
         for &(x, y) in &data.points {
             if y.is_finite() {
                 let expected = x.cos();
                 let error = (y - expected).abs();
-                assert!(error < 1e-9,
+                assert!(
+                    error < 1e-9,
                     "При x={:.4}: got {:.12}, expected {:.12}, error={:.2e}",
-                    x, y, expected, error);
+                    x,
+                    y,
+                    expected,
+                    error
+                );
             }
         }
     }
@@ -636,31 +699,43 @@ mod tests {
         // Проверка, что интеграл монотонно растёт для положительной функции
         let formula = parser::parse("integral(x^2, 0, 1)").unwrap();
         let data = PlotData::compute(&formula, 0.0, 1.0, 11);
-        
+
         let mut prev_y = f64::NEG_INFINITY;
         for &(x, y) in &data.points {
             if y.is_finite() && x >= 0.0 {
-                assert!(y >= prev_y, "Интеграл от x^2 должен монотонно расти: x={:.4}, y={:.6}", x, y);
+                assert!(
+                    y >= prev_y,
+                    "Интеграл от x^2 должен монотонно расти: x={:.4}, y={:.6}",
+                    x,
+                    y
+                );
                 prev_y = y;
             }
         }
-        
+
         // Финальное значение должно быть близко к 1/3
         let last_y = data.points.last().unwrap().1;
-        assert!((last_y - 1.0/3.0).abs() < 1e-5,
-            "∫₀¹ x² dx = {:.10}, ожидалось {:.10}", last_y, 1.0/3.0);
+        assert!(
+            (last_y - 1.0 / 3.0).abs() < 1e-5,
+            "∫₀¹ x² dx = {:.10}, ожидалось {:.10}",
+            last_y,
+            1.0 / 3.0
+        );
     }
 
     #[test]
     fn test_adaptive_tolerance_effect() {
         // Меньший tolerance должен дать больше точек
         let formula = parser::parse("sin(5*x)").unwrap();
-        
+
         let loose = PlotData::compute_adaptive(&formula, 0.0, std::f64::consts::PI, 10, 0.1);
         let strict = PlotData::compute_adaptive(&formula, 0.0, std::f64::consts::PI, 10, 0.001);
-        
-        assert!(strict.points.len() > loose.points.len(),
+
+        assert!(
+            strict.points.len() > loose.points.len(),
             "Более строгий tolerance должен дать больше точек: loose={}, strict={}",
-            loose.points.len(), strict.points.len());
+            loose.points.len(),
+            strict.points.len()
+        );
     }
 }

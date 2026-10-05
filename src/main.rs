@@ -11,9 +11,9 @@ mod ui;
 
 use std::path::PathBuf;
 
-pub use export::save_dialog;
-pub use export::open_csv_dialog;
 pub use export::load_csv;
+pub use export::open_csv_dialog;
+pub use export::save_dialog;
 
 fn main() -> eframe::Result {
     let config = config::AppConfig::load();
@@ -37,8 +37,8 @@ fn main() -> eframe::Result {
             }
 
             // Инициализируем тему из config
-            app.current_theme = theme::ThemeKind::from_string(&config.theme)
-                .unwrap_or(theme::ThemeKind::Dark);
+            app.current_theme =
+                theme::ThemeKind::from_string(&config.theme).unwrap_or(theme::ThemeKind::Dark);
 
             // Восстанавливаем размер окна из config
             app.restore_window_size();
@@ -126,9 +126,18 @@ mod app_tests {
         let mut graph = GraphEntry::new("f1", Color32::RED, "x");
         graph.formula_text = "abc".to_string();
         graph.reparse();
-        assert!(graph.parsed.is_none(), "Невалидная формула 'abc' не должна парситься");
-        assert!(graph.parse_error.is_some(), "parse_error должен быть установлен для 'abc'");
-        assert!(graph.dirty, "График должен быть dirty после изменения формулы");
+        assert!(
+            graph.parsed.is_none(),
+            "Невалидная формула 'abc' не должна парситься"
+        );
+        assert!(
+            graph.parse_error.is_some(),
+            "parse_error должен быть установлен для 'abc'"
+        );
+        assert!(
+            graph.dirty,
+            "График должен быть dirty после изменения формулы"
+        );
     }
 
     #[test]
@@ -137,8 +146,14 @@ mod app_tests {
         graph.formula_text = "sin(x)".to_string();
         graph.reparse();
         assert!(graph.parsed.is_some(), "Формула 'sin(x)' должна парситься");
-        assert!(graph.parse_error.is_none(), "parse_error должен быть None для 'sin(x)'");
-        assert!(graph.dirty, "График должен быть dirty после изменения формулы");
+        assert!(
+            graph.parse_error.is_none(),
+            "parse_error должен быть None для 'sin(x)'"
+        );
+        assert!(
+            graph.dirty,
+            "График должен быть dirty после изменения формулы"
+        );
     }
 
     #[test]
@@ -147,7 +162,10 @@ mod app_tests {
         graph.formula_text = "".to_string();
         graph.reparse();
         assert!(graph.parsed.is_none(), "Пустая строка не должна парситься");
-        assert!(graph.parse_error.is_some(), "parse_error должен быть установлен для пустой строки");
+        assert!(
+            graph.parse_error.is_some(),
+            "parse_error должен быть установлен для пустой строки"
+        );
     }
 
     #[test]
@@ -157,7 +175,10 @@ mod app_tests {
         graph.formula_text = "x^3 + 2*x".to_string();
         assert_eq!(graph.formula_text, "x^3 + 2*x");
         graph.reparse();
-        assert!(graph.parsed.is_some(), "Формула 'x^3 + 2*x' должна парситься");
+        assert!(
+            graph.parsed.is_some(),
+            "Формула 'x^3 + 2*x' должна парситься"
+        );
     }
 
     #[test]
@@ -168,15 +189,30 @@ mod app_tests {
 
         app.graphs[0].formula_text = "!!!".to_string();
         app.graphs[0].reparse();
-        assert!(app.graphs[0].parsed.is_none(), "Первый график не должен парситься");
-        assert!(app.graphs[0].parse_error.is_some(), "Первый график должен иметь parse_error");
-        assert!(app.graphs[1].parsed.is_some(), "Второй график должен оставаться валидным");
-        assert!(app.graphs[1].parse_error.is_none(), "Второй график не должен иметь parse_error");
+        assert!(
+            app.graphs[0].parsed.is_none(),
+            "Первый график не должен парситься"
+        );
+        assert!(
+            app.graphs[0].parse_error.is_some(),
+            "Первый график должен иметь parse_error"
+        );
+        assert!(
+            app.graphs[1].parsed.is_some(),
+            "Второй график должен оставаться валидным"
+        );
+        assert!(
+            app.graphs[1].parse_error.is_none(),
+            "Второй график не должен иметь parse_error"
+        );
 
         app.graphs[0].formula_text = "cos(x)".to_string();
         app.graphs[0].reparse();
         assert!(app.graphs[0].parsed.is_some(), "cos(x) должен парситься");
-        assert!(app.graphs[0].parse_error.is_none(), "parse_error должен быть None для cos(x)");
+        assert!(
+            app.graphs[0].parse_error.is_none(),
+            "parse_error должен быть None для cos(x)"
+        );
     }
 
     #[test]
@@ -185,8 +221,14 @@ mod app_tests {
         app.graphs[0].formula_text = "bad!!".to_string();
         app.graphs[0].reparse();
         app.recompute_all();
-        assert!(app.graphs[0].data.is_none(), "Невалидный график не должен иметь данных");
-        assert!(app.graphs[1].data.is_some(), "Валидный график должен иметь данные");
+        assert!(
+            app.graphs[0].data.is_none(),
+            "Невалидный график не должен иметь данных"
+        );
+        assert!(
+            app.graphs[1].data.is_some(),
+            "Валидный график должен иметь данные"
+        );
     }
 
     #[test]
@@ -251,9 +293,18 @@ mod app_tests {
 
         graph.apply_sliders();
 
-        assert!(graph.formula_text.contains("2"), "Формула должна содержать 2*x^2");
-        assert!(graph.formula_text.contains("3"), "Формула должна содержать 3*x");
-        assert!(graph.formula_text.contains("5"), "Формула должна содержать 5");
+        assert!(
+            graph.formula_text.contains("2"),
+            "Формула должна содержать 2*x^2"
+        );
+        assert!(
+            graph.formula_text.contains("3"),
+            "Формула должна содержать 3*x"
+        );
+        assert!(
+            graph.formula_text.contains("5"),
+            "Формула должна содержать 5"
+        );
         assert!(graph.parsed.is_some(), "Формула должна парситься");
     }
 
@@ -261,45 +312,69 @@ mod app_tests {
     fn test_extract_coeffs_fraction_a() {
         let mut graph = GraphEntry::new("f1", Color32::RED, "1/10*x^2");
         assert!(graph.is_quadratic());
-        
+
         let extracted = graph.extract_quadratic_coeffs();
         assert!(extracted, "Коэффициенты должны извлечься");
-        
-        assert!((graph.slider_a - 0.1).abs() < 1e-10, "a должно быть 0.1, got {}", graph.slider_a);
+
+        assert!(
+            (graph.slider_a - 0.1).abs() < 1e-10,
+            "a должно быть 0.1, got {}",
+            graph.slider_a
+        );
     }
 
     #[test]
     fn test_extract_coeffs_fraction_b() {
         let mut graph = GraphEntry::new("f1", Color32::RED, "x^2 + 1/3*x");
         assert!(graph.is_quadratic());
-        
+
         let extracted = graph.extract_quadratic_coeffs();
         assert!(extracted, "Коэффициенты должны извлечься");
-        
-        assert!((graph.slider_b - 1.0/3.0).abs() < 1e-10, "b должно быть 1/3, got {}", graph.slider_b);
+
+        assert!(
+            (graph.slider_b - 1.0 / 3.0).abs() < 1e-10,
+            "b должно быть 1/3, got {}",
+            graph.slider_b
+        );
     }
 
     #[test]
     fn test_extract_coeffs_fraction_c() {
         let mut graph = GraphEntry::new("f1", Color32::RED, "x^2 - 1/2");
         assert!(graph.is_quadratic());
-        
+
         let extracted = graph.extract_quadratic_coeffs();
         assert!(extracted, "Коэффициенты должны извлечься");
-        
-        assert!((graph.slider_c + 0.5).abs() < 1e-10, "c должно быть -0.5, got {}", graph.slider_c);
+
+        assert!(
+            (graph.slider_c + 0.5).abs() < 1e-10,
+            "c должно быть -0.5, got {}",
+            graph.slider_c
+        );
     }
 
     #[test]
     fn test_extract_coeffs_mixed_fractions() {
         let mut graph = GraphEntry::new("f1", Color32::RED, "1/2*x^2 + 2/3*x - 3/4");
         assert!(graph.is_quadratic());
-        
+
         let extracted = graph.extract_quadratic_coeffs();
         assert!(extracted, "Коэффициенты должны извлечься");
-        
-        assert!((graph.slider_a - 0.5).abs() < 1e-10, "a = 0.5, got {}", graph.slider_a);
-        assert!((graph.slider_b - 2.0/3.0).abs() < 1e-10, "b = 2/3, got {}", graph.slider_b);
-        assert!((graph.slider_c + 0.75).abs() < 1e-10, "c = -0.75, got {}", graph.slider_c);
+
+        assert!(
+            (graph.slider_a - 0.5).abs() < 1e-10,
+            "a = 0.5, got {}",
+            graph.slider_a
+        );
+        assert!(
+            (graph.slider_b - 2.0 / 3.0).abs() < 1e-10,
+            "b = 2/3, got {}",
+            graph.slider_b
+        );
+        assert!(
+            (graph.slider_c + 0.75).abs() < 1e-10,
+            "c = -0.75, got {}",
+            graph.slider_c
+        );
     }
 }

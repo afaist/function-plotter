@@ -323,6 +323,3 @@ impl ThemeKind {
         }
     }
 }
-    
-
-                

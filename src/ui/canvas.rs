@@ -78,7 +78,11 @@ pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     for g in &app.graphs {
         if let Some(ref data) = g.data {
             // Для графиков из CSV (без parsed) используем Regular тип
-            let formula_type = g.parsed.as_ref().map(|p| p.formula_type()).unwrap_or(crate::parser::FormulaType::Regular);
+            let formula_type = g
+                .parsed
+                .as_ref()
+                .map(|p| p.formula_type())
+                .unwrap_or(crate::parser::FormulaType::Regular);
             renderer::draw_curve_with_type(
                 &painter,
                 rect,
@@ -127,14 +131,25 @@ pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     draw_legend(&painter, rect, &app.graphs, &theme);
 
     // Точки пересечения
-    draw_intersections(&painter, rect, &app.viewport, &app.find_intersections(), &theme);
+    draw_intersections(
+        &painter,
+        rect,
+        &app.viewport,
+        &app.find_intersections(),
+        &theme,
+    );
 
     // Координаты мыши
     draw_mouse_coords(ui, &painter, rect, &app.viewport, &theme);
 }
 
 /// Отрисовка школьной сетки 1:1 (клетка = 1 единица).
-fn draw_school_grid(painter: &egui::Painter, rect: Rect, viewport: &crate::renderer::Viewport, theme: &crate::theme::Theme) {
+fn draw_school_grid(
+    painter: &egui::Painter,
+    rect: Rect,
+    viewport: &crate::renderer::Viewport,
+    theme: &crate::theme::Theme,
+) {
     let grid_color = theme.grid_color;
     let stroke = Stroke::new(0.5_f32, grid_color);
 
@@ -191,7 +206,12 @@ fn draw_school_grid(painter: &egui::Painter, rect: Rect, viewport: &crate::rende
 }
 
 /// Отрисовка легенды (список видимых графиков).
-fn draw_legend(painter: &egui::Painter, rect: Rect, graphs: &[crate::app::GraphEntry], theme: &crate::theme::Theme) {
+fn draw_legend(
+    painter: &egui::Painter,
+    rect: Rect,
+    graphs: &[crate::app::GraphEntry],
+    theme: &crate::theme::Theme,
+) {
     let mut legend_y = rect.top() + 8.0;
     for g in graphs {
         if g.style.visible {

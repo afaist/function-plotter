@@ -179,7 +179,9 @@ pub fn save_rect_to_png(
 
     // Сохраняем область в файл
     if let Some(buffer) = image::ImageBuffer::<Rgba<u8>, _>::from_raw(w as u32, h as u32, pixels) {
-        buffer.save(path).map_err(|e| format!("Сохранение PNG: {e}"))?;
+        buffer
+            .save(path)
+            .map_err(|e| format!("Сохранение PNG: {e}"))?;
         println!("График сохранён в {}", path.display());
     } else {
         return Err("Не удалось создать изображение".into());

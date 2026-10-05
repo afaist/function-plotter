@@ -459,9 +459,12 @@ pub fn draw_polar_grid(painter: &Painter, rect: Rect, viewport: &Viewport, theme
     let text_color = theme.text_primary;
 
     // Определяем максимальный радиус в математических координатах
-    let max_radius = (viewport.x_max.abs().max(viewport.x_min.abs())
+    let max_radius = (viewport
+        .x_max
+        .abs()
+        .max(viewport.x_min.abs())
         .max(viewport.y_max.abs().max(viewport.y_min.abs())))
-        .max(1.0);
+    .max(1.0);
 
     // Рисуем концентрические круги
     let num_circles = 6;
@@ -469,7 +472,8 @@ pub fn draw_polar_grid(painter: &Painter, rect: Rect, viewport: &Viewport, theme
     for i in 1..=num_circles {
         let radius = max_radius * i as f64 / num_circles as f64;
         let center = viewport.math_to_screen(0.0, 0.0, rect);
-        let screen_radius = (radius / (viewport.x_max - viewport.x_min) * rect.width() as f64) as f32;
+        let screen_radius =
+            (radius / (viewport.x_max - viewport.x_min) * rect.width() as f64) as f32;
 
         if screen_radius > 0.0 {
             painter.circle_stroke(center, screen_radius, circle_stroke);

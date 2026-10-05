@@ -7,7 +7,7 @@ use egui::{Color32, Context, ScrollArea, Ui};
 use crate::app::{GraphEntry, PlotApp, StatusMessage};
 use crate::config;
 use crate::export;
-use crate::export::{save_dialog};
+use crate::export::save_dialog;
 use crate::parser::ParsedFormula;
 use crate::renderer::Viewport;
 use crate::theme::Theme;
@@ -39,41 +39,43 @@ fn render_graph_entry(
     theme: &Theme,
 ) -> bool {
     let mut changed = false;
-    
+
     // Верхняя строка: цвет + кнопка видимости + кнопка удаления
     ui.horizontal(|ui| {
         // Цветной индикатор побольше
         let (rect, _resp) = ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
         ui.painter().rect_filled(rect, 3.0, color);
-        
+
         // Кнопка видимости — «глаз»
         let eye_icon = if *visible { "👁" } else { "🚫" };
         if ui.button(eye_icon).clicked() {
             *visible = !*visible;
             changed = true;
         }
-        
+
         if ui.button("✕").clicked() {
             *need_remove = Some(i);
             changed = true;
         }
     });
-    
+
     // Индикатор типа формулы
     if let Some((type_color, _icon, type_label)) = &formula_type_info {
         ui.horizontal(|ui| {
-            ui.label(egui::RichText::new(type_label)
-                .color(*type_color)
-                .monospace()
-                .size(11.0));
+            ui.label(
+                egui::RichText::new(type_label)
+                    .color(*type_color)
+                    .monospace()
+                    .size(11.0),
+            );
         });
     }
-    
+
     // Строка формулы — клик выделяет график
     // formula — это &mut String, egui обновляет его напрямую
     let text_edit = egui::TextEdit::singleline(formula).desired_width(f32::INFINITY);
     let text_output = text_edit.show(ui);
-    
+
     // Логика авто-скрытия при редактировании формулы
     if !has_raw_data {
         // При получении фокуса — скрываем график и запоминаем старую формулу
@@ -84,7 +86,7 @@ fn render_graph_entry(
             // Запоминаем формулу ДО редактирования в app state
             app.graphs[i].formula_before_edit = formula.clone();
         }
-        
+
         // При потере фокуса — пересчитываем и показываем
         if text_output.response.lost_focus() && *is_editing {
             *visible = true; // показываем после редактирования
@@ -97,7 +99,7 @@ fn render_graph_entry(
                 *need_reparse = true;
             }
         }
-        
+
         // Если формула изменилась и поле НЕ в фокусе — пересчитываем
         if !text_output.response.has_focus() && *is_editing && !formula.is_empty() {
             *is_editing = false;
@@ -105,7 +107,7 @@ fn render_graph_entry(
             *need_recompute = true;
         }
     }
-    
+
     // Кнопка включения/выключения слайдеров
     if !has_raw_data {
         ui.horizontal(|ui| {
@@ -123,12 +125,12 @@ fn render_graph_entry(
             }
         });
     }
-    
+
     // Клик по формуле или по типу формулы выделяет график
     if text_output.response.clicked() {
         *selected_graph = Some(i);
     }
-    
+
     // Отображаем ошибку парсинга только для не-C графиков
     if !has_raw_data {
         if let Some(ref err) = parse_error {
@@ -143,38 +145,59 @@ fn render_graph_entry(
     }
 
     ui.add_space(4.0);
-    
+
     // Слайдеры для квадратичной функции
     if *use_sliders && !has_raw_data {
         ui.label(egui::RichText::new("a·x² + b·x + c").size(11.0).monospace());
         ui.horizontal(|ui| {
             ui.label("a:");
-            if ui.add(egui::Slider::new(slider_a, -10.0..=10.0).logarithmic(false).show_value(true)).changed() {
+            if ui
+                .add(
+                    egui::Slider::new(slider_a, -10.0..=10.0)
+                        .logarithmic(false)
+                        .show_value(true),
+                )
+                .changed()
+            {
                 changed = true;
             }
         });
         ui.horizontal(|ui| {
             ui.label("b:");
-            if ui.add(egui::Slider::new(slider_b, -10.0..=10.0).logarithmic(false).show_value(true)).changed() {
+            if ui
+                .add(
+                    egui::Slider::new(slider_b, -10.0..=10.0)
+                        .logarithmic(false)
+                        .show_value(true),
+                )
+                .changed()
+            {
                 changed = true;
             }
         });
         ui.horizontal(|ui| {
             ui.label("c:");
-            if ui.add(egui::Slider::new(slider_c, -10.0..=10.0).logarithmic(false).show_value(true)).changed() {
+            if ui
+                .add(
+                    egui::Slider::new(slider_c, -10.0..=10.0)
+                        .logarithmic(false)
+                        .show_value(true),
+                )
+                .changed()
+            {
                 changed = true;
             }
         });
         ui.add_space(2.0);
     }
-    
+
     changed
 }
 
 /// Отрисовка левой панели управления.
 pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     let theme = app.current_theme.resolve(ui.ctx());
-    
+
     ui.heading("Графики");
     ui.add_space(4.0);
 
@@ -229,10 +252,15 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     let mut any_changed = false;
     let mut any_reparse = false;
     let mut selected_graph = app.selected_graph; // выносим в локальную переменную для избежания borrow conflicts
-    // Предварительно вычисляем типы формул для всех графиков (чтобы избежать borrow conflicts)
-    let formula_types: Vec<Option<(Color32, String, String)>> = app.graphs.iter().map(|g| {
-        g.formula_type_info().map(|(c, _icon, l)| (c, l.to_string(), l.to_string()))
-    }).collect();
+                                                 // Предварительно вычисляем типы формул для всех графиков (чтобы избежать borrow conflicts)
+    let formula_types: Vec<Option<(Color32, String, String)>> = app
+        .graphs
+        .iter()
+        .map(|g| {
+            g.formula_type_info()
+                .map(|(c, _icon, l)| (c, l.to_string(), l.to_string()))
+        })
+        .collect();
     // Предварительно вычисляем has_raw_data
     let has_raw_data: Vec<bool> = app.graphs.iter().map(|g| g.raw_data.is_some()).collect();
     for i in 0..app.graphs.len() {
@@ -321,7 +349,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
             g.is_editing = is_editing;
             // Обновляем parse_error из локальной переменной
             g.parse_error = parse_error.clone();
-            
+
             // Обновляем формулу и вызываем reparse если нужно
             if g.raw_data.is_none() {
                 // Если нажата кнопка "Авто" — извлекаем коэффициенты из формулы
@@ -332,9 +360,10 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                     slider_b = g.slider_b;
                     slider_c = g.slider_c;
                 }
-                
+
                 // Сначала копируем значения из UI в g
-                let sliders_changed = use_sliders && (slider_a != g.slider_a || slider_b != g.slider_b || slider_c != g.slider_c);
+                let sliders_changed = use_sliders
+                    && (slider_a != g.slider_a || slider_b != g.slider_b || slider_c != g.slider_c);
                 if sliders_changed {
                     g.slider_a = slider_a;
                     g.slider_b = slider_b;
@@ -351,7 +380,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                     parse_error = g.parse_error.clone();
                     any_reparse = true;
                 }
-                
+
                 // Копируем актуальные значения слайдеров обратно
                 g.slider_a = slider_a;
                 g.slider_b = slider_b;
@@ -382,7 +411,10 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     ui.add_space(4.0);
 
     // Школьная сетка
-    if ui.checkbox(&mut app.school_grid, "Школьная сетка 1:1").changed() {
+    if ui
+        .checkbox(&mut app.school_grid, "Школьная сетка 1:1")
+        .changed()
+    {
         app.has_unsaved_changes = true;
     }
 
@@ -452,7 +484,10 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
 
     // Полярные координаты
     ui.add_space(4.0);
-    if ui.checkbox(&mut app.polar_mode, "Полярные координаты").changed() {
+    if ui
+        .checkbox(&mut app.polar_mode, "Полярные координаты")
+        .changed()
+    {
         app.has_unsaved_changes = true;
         need_save_snapshot = true;
         app.mark_all_dirty();
@@ -469,7 +504,10 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
 
     // Адаптивный алгоритм
     ui.add_space(4.0);
-    if ui.checkbox(&mut app.adaptive, "Адаптивная плотность").changed() {
+    if ui
+        .checkbox(&mut app.adaptive, "Адаптивная плотность")
+        .changed()
+    {
         app.has_unsaved_changes = true;
         need_save_snapshot = true;
     }
@@ -522,7 +560,14 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         }
     });
     ui.horizontal(|ui| {
-        if ui.button(if app.auto_y { "⟳ Авто Y" } else { "⟳ Авто Y (выкл)" }).clicked() {
+        if ui
+            .button(if app.auto_y {
+                "⟳ Авто Y"
+            } else {
+                "⟳ Авто Y (выкл)"
+            })
+            .clicked()
+        {
             app.auto_y = !app.auto_y;
             app.has_unsaved_changes = true;
             need_save_snapshot = true;
@@ -607,7 +652,8 @@ fn show_export_ui(app: &mut PlotApp, ctx: &Context, ui: &mut Ui, need_recompute:
                     let idx = app.graphs.len();
                     let color = palette[idx % palette.len()];
                     let label = format!("data{}", idx + 1);
-                    app.graphs.push(GraphEntry::from_raw_data(&label, color, points));
+                    app.graphs
+                        .push(GraphEntry::from_raw_data(&label, color, points));
                     app.selected_graph = Some(app.graphs.len() - 1);
                     app.has_unsaved_changes = true;
                     *need_recompute = true;
@@ -695,7 +741,9 @@ fn show_export_ui(app: &mut PlotApp, ctx: &Context, ui: &mut Ui, need_recompute:
         if let Some(ref p) = path {
             app.save_path = Some(p.clone());
             app.should_capture = true;
-            ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData { data: None }));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData {
+                data: None,
+            }));
         }
     }
 }
@@ -870,11 +918,16 @@ fn show_session_ui(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui) {
 
     let config = config::AppConfig::load();
     let mut auto_load = config.auto_load_last_session;
-    if ui.checkbox(&mut auto_load, "Автозагрузка последней сессии").changed() {
+    if ui
+        .checkbox(&mut auto_load, "Автозагрузка последней сессии")
+        .changed()
+    {
         let mut new_config = config;
         new_config.auto_load_last_session = auto_load;
         if let Err(e) = new_config.save() {
-            app.status_msg = Some(StatusMessage::Error(format!("Ошибка сохранения настроек: {e}")));
+            app.status_msg = Some(StatusMessage::Error(format!(
+                "Ошибка сохранения настроек: {e}"
+            )));
             app.status_time = Some(Instant::now());
         }
     }

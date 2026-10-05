@@ -262,7 +262,10 @@ pub fn parse(input: &str) -> Result<ParsedFormula, String> {
                 theta_max,
             });
         }
-        return Err("Неверный синтаксис polar(...). Ожидается polar(выражение, theta_min, theta_max)".into());
+        return Err(
+            "Неверный синтаксис polar(...). Ожидается polar(выражение, theta_min, theta_max)"
+                .into(),
+        );
     }
 
     // Обработка parametric(x(t), y(t), t_min, t_max)
@@ -283,12 +286,14 @@ pub fn parse(input: &str) -> Result<ParsedFormula, String> {
             let t_max_str = &args[3];
 
             // Парсим x(t) и y(t) с переменной t
-            let x_expr_parsed = Expression::parse(x_expr).map_err(|e| format!("parametric x: {e}"))?;
+            let x_expr_parsed =
+                Expression::parse(x_expr).map_err(|e| format!("parametric x: {e}"))?;
             let x_formula = x_expr_parsed
                 .compile(&["t"])
                 .map_err(|e| format!("parametric x compile: {e}"))?;
-            
-            let y_expr_parsed = Expression::parse(y_expr).map_err(|e| format!("parametric y: {e}"))?;
+
+            let y_expr_parsed =
+                Expression::parse(y_expr).map_err(|e| format!("parametric y: {e}"))?;
             let y_formula = y_expr_parsed
                 .compile(&["t"])
                 .map_err(|e| format!("parametric y compile: {e}"))?;
@@ -315,13 +320,20 @@ pub fn parse(input: &str) -> Result<ParsedFormula, String> {
             }
 
             return Ok(ParsedFormula::Parametric {
-                x_formula: Box::new(ParsedFormula::Regular { compiled: x_formula }),
-                y_formula: Box::new(ParsedFormula::Regular { compiled: y_formula }),
+                x_formula: Box::new(ParsedFormula::Regular {
+                    compiled: x_formula,
+                }),
+                y_formula: Box::new(ParsedFormula::Regular {
+                    compiled: y_formula,
+                }),
                 t_min,
                 t_max,
             });
         }
-        return Err("Неверный синтаксис parametric(...). Ожидается parametric(x(t), y(t), t_min, t_max)".into());
+        return Err(
+            "Неверный синтаксис parametric(...). Ожидается parametric(x(t), y(t), t_min, t_max)"
+                .into(),
+        );
     }
 
     // Обычная формула
