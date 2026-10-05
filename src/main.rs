@@ -1,12 +1,12 @@
-pub mod app;
-pub mod config;
-pub mod evaluator;
-pub mod export;
-pub mod parser;
-pub mod renderer;
-pub mod session;
-pub mod templates;
-pub mod ui;
+mod app;
+mod config;
+mod evaluator;
+mod export;
+mod parser;
+mod renderer;
+mod session;
+mod templates;
+mod ui;
 
 use std::path::PathBuf;
 
