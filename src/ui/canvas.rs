@@ -10,14 +10,14 @@ pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     // Получаем реальный размер экрана и вычитаем левую панель
     let screen_rect = ctx
         .input(|i| i.raw.screen_rect)
-        .unwrap_or_else(|| egui::Rect::NOTHING);
+        .unwrap_or(egui::Rect::NOTHING);
     let left = ui.max_rect().left();
     let rect = Rect::from_x_y_ranges(left..=screen_rect.right(), screen_rect.y_range());
     let response = ui.allocate_rect(rect, Sense::click_and_drag());
     ui.advance_cursor_after_rect(rect);
 
     // Отслеживаем изменение размера и пересчитываем графики
-    if let Some(prev) = app._last_canvas_rect {
+    if let Some(prev) = app.last_canvas_rect {
         if prev.size() != rect.size() {
             app.mark_all_dirty();
             ctx.request_repaint();
@@ -26,7 +26,7 @@ pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
             app.save_window_size();
         }
     }
-    app._last_canvas_rect = Some(rect);
+    app.last_canvas_rect = Some(rect);
     // Сохраняем координаты холста для скриншота
     app.graph_rect = Some(rect);
 
@@ -127,7 +127,7 @@ pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     draw_legend(&painter, rect, &app.graphs, &theme);
 
     // Точки пересечения
-    draw_intersections(&painter, rect, &app.viewport, &app.graphs, &theme);
+    draw_intersections(&painter, rect, &app.viewport, &app.find_intersections(), &theme);
 
     // Координаты мыши
     draw_mouse_coords(ui, &painter, rect, &app.viewport, &theme);
@@ -244,71 +244,12 @@ fn draw_intersections(
     painter: &egui::Painter,
     rect: Rect,
     viewport: &crate::renderer::Viewport,
-    graphs: &[crate::app::GraphEntry],
+    intersections: &[crate::app::IntersectionPoint],
     theme: &crate::theme::Theme,
 ) {
-    let visible: Vec<&crate::app::GraphEntry> = graphs
-        .iter()
-        .filter(|g| g.style.visible && g.data.is_some())
-        .collect();
-
-    if visible.len() < 2 {
-        return;
-    }
-
-    let mut found: Vec<(f64, f64)> = Vec::new();
-
-    for i in 0..visible.len() {
-        for j in (i + 1)..visible.len() {
-            let data_a = visible[i].data.as_ref().unwrap();
-            let data_b = visible[j].data.as_ref().unwrap();
-
-            let min_len = data_a.points.len().min(data_b.points.len());
-            for k in 1..min_len {
-                let (xa_a, ya_a) = data_a.points[k - 1];
-                let (_xa_b, yb_a) = data_b.points[k - 1];
-                let (xa_c, ya_c) = data_a.points[k];
-                let (_xa_d, yb_c) = data_b.points[k];
-
-                let diff_prev = ya_a - yb_a;
-                let diff_curr = ya_c - yb_c;
-
-                if diff_prev * diff_curr < 0.0 {
-                    let dx = xa_c - xa_a;
-                    if dx.abs() > 1e-15 {
-                        let t = diff_prev / (diff_prev - diff_curr);
-                        let ix = xa_a + t * dx;
-                        let slope_a = (ya_c - ya_a) / dx;
-                        let slope_b = (yb_c - yb_a) / dx;
-                        let iy_a = ya_a + slope_a * (ix - xa_a);
-                        let iy_b = yb_a + slope_b * (ix - xa_a);
-                        let iy = (iy_a + iy_b) / 2.0;
-
-                        if ix.is_finite()
-                            && iy.is_finite()
-                            && ix >= viewport.x_min
-                            && ix <= viewport.x_max
-                            && iy >= viewport.y_min
-                            && iy <= viewport.y_max
-                        {
-                            // Проверяем дубликаты
-                            let is_dup = found.iter().any(|(fx, fy)| {
-                                (fx - ix).abs() < 0.01 * (viewport.x_max - viewport.x_min)
-                                    && (fy - iy).abs() < 0.01 * (viewport.y_max - viewport.y_min)
-                            });
-                            if !is_dup {
-                                found.push((ix, iy));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     // Отрисовка всех найденных точек
-    for (ix, iy) in &found {
-        let screen_pos = viewport.math_to_screen(*ix, *iy, rect);
+    for point in intersections {
+        let screen_pos = viewport.math_to_screen(point.x, point.y, rect);
         // Маленькая точка с обводкой (радиус 2.5)
         painter.circle_filled(screen_pos, 2.5, theme.intersection_dot);
         painter.circle_stroke(
@@ -317,7 +258,7 @@ fn draw_intersections(
             egui::Stroke::new(1.0_f32, egui::Color32::BLACK),
         );
         // Подпись с координатами
-        let label = format!("({:.3}, {:.3})", ix, iy);
+        let label = format!("({:.3}, {:.3})", point.x, point.y);
         painter.text(
             screen_pos + egui::vec2(10.0, -8.0),
             egui::Align2::LEFT_TOP,

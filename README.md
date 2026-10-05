@@ -170,7 +170,7 @@ A: Точки пересечения отображаются автоматич
 
 ```json
 {
-  "version": 2,
+  "version": 3,
   "graphs": [
     {
       "label": "f1",
@@ -207,10 +207,11 @@ A: Точки пересечения отображаются автоматич
 
 ```json
 {
-  "version": 1,
+  "version": 3,
   "window_width": 1000.0,
   "window_height": 700.0,
-  "auto_load_last_session": false
+  "auto_load_last_session": false,
+  "theme": "dark"
 }
 ```
 

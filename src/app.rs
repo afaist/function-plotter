@@ -29,8 +29,7 @@ impl StatusMessage {
 
 /// Точка пересечения двух графиков.
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
-pub struct IntersectionPoint {
+pub(crate) struct IntersectionPoint {
     pub x: f64,
     pub y: f64,
 }
@@ -285,9 +284,9 @@ impl GraphEntry {
     fn split_terms(&self, text: &str) -> Vec<String> {
         let mut terms = Vec::new();
         let mut current = String::new();
-        let mut chars = text.chars().peekable();
+        let chars = text.chars().peekable();
         
-        while let Some(ch) = chars.next() {
+        for ch in chars {
             if ch == '+' || ch == '-' {
                 if !current.is_empty() {
                     terms.push(current.clone());
@@ -314,10 +313,10 @@ impl GraphEntry {
         let term = term.trim();
         
         // Убираем знак + или -
-        let (sign, rest) = if term.starts_with('-') {
-            (-1.0, &term[1..])
-        } else if term.starts_with('+') {
-            (1.0, &term[1..])
+        let (sign, rest) = if let Some(stripped) = term.strip_prefix('-') {
+            (-1.0, stripped)
+        } else if let Some(stripped) = term.strip_prefix('+') {
+            (1.0, stripped)
         } else {
             (1.0, term)
         };
@@ -408,9 +407,6 @@ pub struct PlotApp {
     pub is_ready_to_close: bool,
     /// Флаг: есть несохранённые изменения.
     pub has_unsaved_changes: bool,
-    /// Флаг: отменить закрытие (ожидание действия пользователя).
-    #[allow(dead_code)]
-    pub cancel_close: bool,
     /// Стек для undo: снимки состояния graphs
     pub undo_stack: Vec<Vec<GraphEntry>>,
     /// Стек для redo: снимки состояния graphs
@@ -418,7 +414,7 @@ pub struct PlotApp {
     /// Максимальный размер истории
     pub max_history: usize,
     /// Последний размер canvas для отслеживания ресайза
-    pub _last_canvas_rect: Option<Rect>,
+    pub last_canvas_rect: Option<Rect>,
     /// Размер окна для сохранения
     pub window_size: [f32; 2],
     /// Флаг: сделать скриншот
@@ -462,11 +458,11 @@ impl Default for PlotApp {
             show_save_dialog: false,
             is_ready_to_close: false,
             has_unsaved_changes: false,
-            cancel_close: false,
+
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             max_history: 50,
-            _last_canvas_rect: None,
+            last_canvas_rect: None,
             window_size: [1000.0, 700.0],
             should_capture: false,
             graph_rect: None,
@@ -546,8 +542,7 @@ impl PlotApp {
     }
 
     /// Найти точки пересечения видимых графиков.
-    #[allow(dead_code)]
-    pub fn find_intersections(&self) -> Vec<IntersectionPoint> {
+    pub(crate) fn find_intersections(&self) -> Vec<IntersectionPoint> {
         let mut intersections = Vec::new();
         let visible: Vec<&GraphEntry> = self
             .graphs
@@ -600,529 +595,6 @@ impl PlotApp {
                                         });
                                     if !is_dup {
                                         intersections.push(IntersectionPoint { x: ix, y: iy });
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        intersections
-    }
-
-    /// Сохранить размер окна в config.
-    pub fn save_window_size(&mut self) {
-        let config = config::AppConfig::load();
-        let new_config = config::AppConfig {
-            window_width: self.window_size[0] as f64,
-            window_height: self.window_size[1] as f64,
-            ..config
-        };
-        let _ = new_config.save();
-    }
-
-    /// Восстановить размер окна из config.
-    pub fn restore_window_size(&mut self) {
-        let config = config::AppConfig::load();
-        self.window_size = [config.window_width as f32, config.window_height as f32];
-    }
-
-    /// Сохранить текущее состояние graphs в undo_stack.
-    pub fn save_snapshot(&mut self) {
-        self.undo_stack.push(self.graphs.clone());
-        self.redo_stack.clear(); // новое действие — очищаем redo
-        // Ограничить размер истории
-        if self.undo_stack.len() > self.max_history {
-            self.undo_stack.remove(0);
-        }
-    }
-
-    /// Отменить последнее действие. Возвращает true если было что отменять.
-    pub fn undo(&mut self) -> bool {
-        if self.undo_stack.is_empty() {
-            return false;
-        }
-        // Сохраняем текущее состояние в redo
-        self.redo_stack.push(self.graphs.clone());
-        // Восстанавливаем предыдущее
-        self.graphs = self.undo_stack.pop().unwrap();
-        self.mark_all_dirty();
-        true
-    }
-
-    /// Повторить отменённое действие. Возвращает true если было что повторять.
-    pub fn redo(&mut self) -> bool {
-        if self.redo_stack.is_empty() {
-            return false;
-        }
-        // Сохраняем текущее состояние в undo
-        self.undo_stack.push(self.graphs.clone());
-        // Восстанавливаем следующее
-        self.graphs = self.redo_stack.pop().unwrap();
-        self.mark_all_dirty();
-        true
-    }
-
-    /// Предложить сохранить сессию при выходе.
-    /// Возвращает путь, если пользователь выбрал файл для сохранения.
-    #[allow(dead_code)]
-    pub fn prompt_save_on_exit(&mut self) -> Option<PathBuf> {
-        // Предлагаем сохранить только если сессия никогда не была явно сохранена
-        if self.session_path.is_some() {
-            return None;
-        }
-
-        let path = rfd::FileDialog::new()
-            .set_file_name("plot_session.json")
-            .add_filter("JSON", &["json"])
-            .save_file();
-
-        if let Some(ref p) = path {
-            let session = crate::session::SessionData::from_app(self);
-            match session.save_to_file(p) {
-                Ok(()) => {
-                    self.session_path = Some(p.clone());
-                    self.last_session_path = Some(p.clone());
-                    self.pending_save_on_exit = false;
-                    return Some(p.clone());
-                }
-                Err(e) => {
-                    self.status_msg = Some(StatusMessage::Error(format!("Ошибка сохранения: {e}")));
-                    self.status_time = Some(Instant::now());
-                }
-            }
-        }
-
-        self.pending_save_on_exit = false;
-        None
-    }
-
-    /// Загрузить последнюю сессию, если она существует.
-    pub fn try_load_last_session(&mut self) {
-        let path = self.last_session_path.clone();
-        if let Some(ref path) = path {
-            if path.exists() {
-                match crate::session::SessionData::load_from_file(path) {
-                    Ok(session_data) => {
-                        session_data.apply_to_app(self);
-                        self.session_path = Some(path.clone());
-                        self.status_msg =
-                            Some(StatusMessage::Info(format!("Автозагрузка: {}", path.display())));
-                        self.status_time = Some(Instant::now());
-                    }
-                    Err(e) => {
-                        self.status_msg = Some(StatusMessage::Error(format!("Ошибка автозагрузки: {e}")));
-                        self.status_time = Some(Instant::now());
-                    }
-                }
-            }
-        }
-    }
-
-    /// Сгенерировать таблицу значений для указанного графика.
-    #[allow(dead_code)]
-    pub fn generate_values_table(&self, graph_index: usize, steps: usize) -> Option<Vec<(f64, f64)>> {
-        let graph = self.graphs.get(graph_index)?;
-        let data = graph.data.as_ref()?;
-        
-        let n = steps.max(2).min(1000);
-        let x_range = self.viewport.x_max - self.viewport.x_min;
-        let x_step = x_range / (n - 1) as f64;
-        let x_start = self.viewport.x_min;
-        
-        let mut table = Vec::with_capacity(n);
-        for i in 0..n {
-            let x = x_start + i as f64 * x_step;
-            let y = data.points.get(i).map(|p| p.1).unwrap_or(f64::NAN);
-            table.push((x, y));
-        }
-        
-        Some(table)
-    }
-
-    /// Отрисовка окна таблицы значений.
-    #[allow(dead_code)]
-    fn render_values_table_ui(&mut self, ui: &mut egui::Ui) {
-        // Эта функция оставлена для обратной совместимости
-        let _ = ui;
-    }
-
-    /// Применить тему к egui Context.
-    pub fn apply_theme(&self, ctx: &egui::Context) {
-        let theme = self.current_theme.resolve(ctx);
-        let mut style = egui::Style::default();
-        style.visuals.extreme_bg_color = theme.egui_bg;
-        style.visuals.override_text_color = Some(theme.egui_text);
-        style.visuals.window_fill = theme.egui_bg;
-        style.visuals.panel_fill = theme.egui_bg;
-        
-        // egui 0.36.x: стили привязаны к теме (Dark/Light)
-        let egui_theme = if theme.egui_bg.r() < 128 {
-            egui::Theme::Dark
-        } else {
-            egui::Theme::Light
-        };
-        ctx.set_style_of(egui_theme, style);
-    }
-
-    /// Установить новую тему и сохранить в конфиг.
-    pub fn set_theme(&mut self, theme: ThemeKind) {
-        self.current_theme = theme.clone();
-        let mut config = config::AppConfig::load();
-        config.theme = theme.to_string().to_lowercase();
-        let _ = config.save();
-    }
-}
-
-/// Данные для таблицы значений.
-#[derive(Clone, Debug)]
-struct ValuesTableData {
-    graph_label: String,
-    formula: String,
-    points: Vec<(f64, f64)>,
-}
-
-/// Отрисовка окна таблицы значений (standalone функция).
-fn render_values_table_ui(
-    ui: &mut egui::Ui,
-    table_steps: &mut usize,
-    x_min: f64,
-    x_max: f64,
-    table_data: Option<&ValuesTableData>,
-    graph_label: &Option<String>,
-) {
-    ui.heading("Таблица значений");
-    ui.add_space(8.0);
-
-    if let Some(data) = table_data {
-        // Количество шагов
-        let mut steps = *table_steps;
-        ui.horizontal(|ui| {
-            ui.label("Шагов:");
-            if ui.add(egui::Slider::new(&mut steps, 5..=100).text("количество")).changed() {
-                *table_steps = steps;
-            }
-        });
-
-        // Таблица
-        let n = steps.max(2).min(1000);
-        let x_range = x_max - x_min;
-        let x_step = x_range / (n - 1) as f64;
-
-        ui.add_space(8.0);
-        ui.label(format!("График: {}  |  Формула: {}", data.graph_label, data.formula));
-        ui.separator();
-
-        // Используем Grid для таблицы
-        egui::Grid::new("values_grid")
-            .striped(true)
-            .spacing([40.0, 8.0])
-            .show(ui, |ui| {
-                ui.strong("X");
-                ui.strong("Y");
-                ui.end_row();
-
-                for i in 0..n {
-                    let x = x_min + i as f64 * x_step;
-                    let y = data.points.get(i).map(|p| p.1).unwrap_or(f64::NAN);
-                    
-                    ui.label(format!("{:.4}", x));
-                    if y.is_nan() {
-                        ui.label("—");
-                    } else {
-                        ui.label(format!("{:.4}", y));
-                    }
-                    ui.end_row();
-                }
-            });
-    } else {
-        ui.label("Выберите график для отображения таблицы");
-        if let Some(ref label) = graph_label {
-            ui.label(format!("Выбран: {}", label));
-        }
-    }
-}
-
-impl eframe::App for PlotApp {
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        let ctx = ui.ctx().clone();
-        
-        // Применяем тему в начале каждого кадра
-        self.apply_theme(&ctx);
-        
-        // --- Запрос на сохранение сессии при выходе ---
-        // 1. Проверяем, нажал ли пользователь на крестик окна
-        if ctx.input(|i| i.viewport().close_requested()) {
-            // Показываем диалог только если есть несохранённые изменения
-            if !self.is_ready_to_close && self.has_unsaved_changes {
-                // Отменяем автоматическое закрытие приложения
-                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-                // Показываем свое диалоговое окно подтверждения
-                self.show_save_dialog = true;
-            }
-        }
-
-        // 2. Отрисовываем диалог подтверждения поверх основного интерфейса
-        if self.show_save_dialog {
-            let mut save_file = false;
-            let mut close_without_save = false;
-            let mut cancel = false;
-            
-            egui::Window::new("Сохранить сессию?")
-                .resizable(false)
-                .collapsible(false)
-                .show(&ctx, |ui| {
-                    ui.label("Вы хотите сохранить сессию перед выходом?");
-                    ui.horizontal(|ui| {
-                        if ui.button("Сохранить").clicked() {
-                            save_file = true;
-                        }
-                        if ui.button("Не сохранять").clicked() {
-                            close_without_save = true;
-                        }
-                        if ui.button("Отмена").clicked() {
-                            cancel = true;
-                        }
-                    });
-                });
-
-            if save_file {
-                // 3. Если пользователь нажал "Сохранить" — показываем диалог сохранения
-                let path = rfd::FileDialog::new()
-                    .set_file_name("plot_session.json")
-                    .add_filter("JSON", &["json"])
-                    .save_file();
-
-                if let Some(p) = path {
-                    let session = crate::session::SessionData::from_app(self);
-                    if session.save_to_file(&p).is_ok() {
-                        self.session_path = Some(p.clone());
-                        self.last_session_path = Some(p.clone());
-                        self.has_unsaved_changes = false;
-                        let mut config = config::AppConfig::load();
-                        config.last_session_path = Some(p.to_string_lossy().to_string());
-                        let _ = config.save();
-                        self.status_msg = Some(StatusMessage::Info("Сессия сохранена".to_string()));
-                        self.status_time = Some(Instant::now());
-                    }
-                }
-                self.show_save_dialog = false;
-                self.pending_save_on_exit = false;
-                // Готовимся к закрытию
-                self.is_ready_to_close = true;
-                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-            } else if close_without_save {
-                self.show_save_dialog = false;
-                self.pending_save_on_exit = false;
-                // Готовимся к закрытию — на следующем кадре close_requested() не покажет диалог
-                self.is_ready_to_close = true;
-                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-            } else if cancel {
-                // Отмена — просто закрываем диалог, приложение остаётся открытым
-                self.show_save_dialog = false;
-            }
-
-            // Не показываем основной интерфейс
-            return;
-        }
-
-        // --- Горячие клавиши ---
-        let input = ui.input(|i| i.clone());
-        let ctrl = input.modifiers.ctrl || input.modifiers.command;
-
-        // Ctrl+Z — отмена
-        if input.key_pressed(egui::Key::Z) && ctrl && !input.modifiers.shift {
-            if self.undo() {
-                self.status_msg = Some(StatusMessage::Info("Отменено".to_string()));
-                self.status_time = Some(Instant::now());
-            }
-        }
-
-        // Ctrl+Shift+Z или Ctrl+Y — повтор
-        if (input.key_pressed(egui::Key::Z) && input.modifiers.shift && ctrl)
-            || (input.key_pressed(egui::Key::Y) && ctrl)
-        {
-            if self.redo() {
-                self.status_msg = Some(StatusMessage::Info("Повторено".to_string()));
-                self.status_time = Some(Instant::now());
-            }
-        }
-
-        // Ctrl+N — новый график
-        if input.key_pressed(egui::Key::N) && ctrl {
-            let palette = [
-                Color32::from_rgb(150, 255, 150),
-                Color32::from_rgb(255, 255, 100),
-                Color32::from_rgb(200, 100, 255),
-                Color32::from_rgb(100, 255, 200),
-            ];
-            let idx = self.graphs.len();
-            let color = palette[idx % palette.len()];
-            self.graphs
-                .push(GraphEntry::new(&format!("f{}", idx + 1), color, "x"));
-            self.selected_graph = Some(self.graphs.len() - 1);
-            self.has_unsaved_changes = true;
-            self.save_snapshot();
-            self.recompute_all();
-        }
-
-        // Ctrl+O — загрузить сессию
-        if input.key_pressed(egui::Key::O) && ctrl {
-            let path = rfd::FileDialog::new()
-                .add_filter("JSON", &["json"])
-                .pick_file();
-            if let Some(ref p) = path {
-                match session::SessionData::load_from_file(p) {
-                    Ok(session_data) => {
-                        session_data.apply_to_app(self);
-                        self.session_path = Some(p.clone());
-                        self.last_session_path = Some(p.clone());
-                        self.pending_save_on_exit = false;
-                        self.has_unsaved_changes = false;
-                        // Сохраняем путь в config
-                        let mut config = config::AppConfig::load();
-                        config.last_session_path = Some(p.to_string_lossy().to_string());
-                        let _ = config.save();
-                        self.status_msg =
-                            Some(StatusMessage::Info(format!("Загружено: {}", p.display())));
-                        self.status_time = Some(Instant::now());
-                    }
-                    Err(e) => {
-                        self.status_msg = Some(StatusMessage::Error(format!("Ошибка: {e}")));
-                        self.status_time = Some(Instant::now());
-                    }
-                }
-            }
-        }
-
-        // Delete — удалить выбранный график
-        if input.key_pressed(egui::Key::Delete) && self.graphs.len() > 1 {
-            if let Some(idx) = self.selected_graph {
-                if idx < self.graphs.len() {
-                    self.graphs.remove(idx);
-                    // Корректировка selected_graph
-                    if idx >= self.graphs.len() {
-                        self.selected_graph = Some(self.graphs.len() - 1);
-                    } else {
-                        self.selected_graph = Some(idx);
-                    }
-                    self.has_unsaved_changes = true;
-                    self.save_snapshot();
-                    self.recompute_all();
-                }
-            }
-        }
-
-        // R — сбросить масштаб
-        if input.key_pressed(egui::Key::R) && !ctrl {
-            self.viewport = Viewport::new();
-            self.x_min = self.viewport.x_min;
-            self.x_max = self.viewport.x_max;
-            self.auto_y = true;
-            self.recompute_all();
-        }
-
-        // F5 / Ctrl+Enter — принудительная перерасчёт
-        if input.key_pressed(egui::Key::F5) || (input.key_pressed(egui::Key::Enter) && ctrl) {
-            self.recompute_all();
-        }
-
-        // Автоматический пересчёт dirty графиков
-        self.recompute_all();
-
-        // --- Левая панель управления ---
-        egui::Panel::left("controls")
-            .resizable(true)
-            .default_size(260.0)
-            .show(ui, |ui| {
-                crate::ui::controls::show_controls_panel(self, &ctx, ui);
-            });
-
-        // --- Центральная область: холст для графиков ---
-        egui::CentralPanel::default().show(ui, |ui| {
-            crate::ui::canvas::show_canvas_panel(self, &ctx, ui);
-        });
-
-        // --- Окна помощи и "О программе" ---
-        egui::Window::new("Помощь")
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .resizable(true)
-            .open(&mut self.show_help_window)
-            .show(&ctx, |ui| {
-                crate::ui::controls::render_help_content(ui);
-            });
-
-        // Для окна "О программе" — извлекаем current_theme до borrow
-        let current_theme = self.current_theme;
-        egui::Window::new("О программе")
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .resizable(false)
-            .open(&mut self.show_about_window)
-            .show(&ctx, |ui| {
-                crate::ui::controls::render_about_content(ui, &current_theme);
-            });
-        // Применяем тему после закрытия окна
-        if self.show_about_window {
-            // Тема применяется автоматически через apply_theme() в начале ui()
-        }
-
-        // Окно таблицы значений
-        egui::Window::new("Таблица значений")
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .resizable(true)
-            .open(&mut self.show_values_table)
-            .show(&ctx, |ui| {
-                // Извлекаем данные для таблицы, чтобы избежать borrow conflicts
-                let table_data = self.values_table_graph_index.and_then(|idx| {
-                    if idx < self.graphs.len() {
-                        let graph = &self.graphs[idx];
-                        graph.data.as_ref().map(|data| ValuesTableData {
-                            graph_label: graph.style.label.clone(),
-                            formula: graph.formula_text.clone(),
-                            points: data.points.clone(),
-                        })
-                    } else {
-                        None
-                    }
-                });
-
-                let x_min = self.viewport.x_min;
-                let x_max = self.viewport.x_max;
-                let graph_label = self.values_table_graph_index.and_then(|idx| {
-                    if idx < self.graphs.len() {
-                        Some(self.graphs[idx].style.label.clone())
-                    } else {
-                        None
-                    }
-                });
-
-                render_values_table_ui(ui, &mut self.values_table_steps, x_min, x_max, table_data.as_ref(), &graph_label);
-            });
-
-        // --- Обработка скриншота ---
-        if self.should_capture {
-            let screenshot = ctx.input(|i| {
-                i.raw.events.iter().find_map(|event| {
-                    if let egui::Event::Screenshot { image, .. } = event {
-                        Some(image.clone())
-                    } else {
-                        None
-                    }
-                })
-            });
-            if let Some(screenshot) = screenshot {
-                self.should_capture = false;
-                
-                if let (Some(rect), Some(ref save_path)) = (self.graph_rect, &self.save_path) {
-                    if let Err(e) = save_rect_to_png(&screenshot, rect, save_path) {
-                        self.status_msg = Some(StatusMessage::Error(format!("Ошибка PNG: {e}")));
-                        self.status_time = Some(Instant::now());
-                    }
-                }
-                self.save_path = None;
-            }
         }
     }
 }
@@ -1441,6 +913,527 @@ mod tests {
             if y.is_finite() {
                 assert!(*y >= -1.0 - 1e-10, "Y должно быть >= -1");
                 assert!(*y <= 1.0 + 1e-10, "Y должно быть <= 1");
+            }
+        }
+    }
+}
+                        }
+                    }
+                }
+            }
+        }
+
+        intersections
+    }
+
+    /// Сохранить размер окна в config.
+    pub fn save_window_size(&mut self) {
+        let config = config::AppConfig::load();
+        let new_config = config::AppConfig {
+            window_width: self.window_size[0] as f64,
+            window_height: self.window_size[1] as f64,
+            ..config
+        };
+        let _ = new_config.save();
+    }
+
+    /// Восстановить размер окна из config.
+    pub fn restore_window_size(&mut self) {
+        let config = config::AppConfig::load();
+        self.window_size = [config.window_width as f32, config.window_height as f32];
+    }
+
+    /// Сохранить текущее состояние graphs в undo_stack.
+    pub fn save_snapshot(&mut self) {
+        self.undo_stack.push(self.graphs.clone());
+        self.redo_stack.clear(); // новое действие — очищаем redo
+        // Ограничить размер истории
+        if self.undo_stack.len() > self.max_history {
+            self.undo_stack.remove(0);
+        }
+    }
+
+    /// Отменить последнее действие. Возвращает true если было что отменять.
+    pub fn undo(&mut self) -> bool {
+        if self.undo_stack.is_empty() {
+            return false;
+        }
+        // Сохраняем текущее состояние в redo
+        self.redo_stack.push(self.graphs.clone());
+        // Восстанавливаем предыдущее
+        self.graphs = self.undo_stack.pop().unwrap();
+        self.mark_all_dirty();
+        true
+    }
+
+    /// Повторить отменённое действие. Возвращает true если было что повторять.
+    pub fn redo(&mut self) -> bool {
+        if self.redo_stack.is_empty() {
+            return false;
+        }
+        // Сохраняем текущее состояние в undo
+        self.undo_stack.push(self.graphs.clone());
+        // Восстанавливаем следующее
+        self.graphs = self.redo_stack.pop().unwrap();
+        self.mark_all_dirty();
+        true
+    }
+
+    /// Предложить сохранить сессию при выходе.
+    /// Возвращает путь, если пользователь выбрал файл для сохранения.
+    #[allow(dead_code)]
+    pub fn prompt_save_on_exit(&mut self) -> Option<PathBuf> {
+        // Предлагаем сохранить только если сессия никогда не была явно сохранена
+        if self.session_path.is_some() {
+            return None;
+        }
+
+        let path = rfd::FileDialog::new()
+            .set_file_name("plot_session.json")
+            .add_filter("JSON", &["json"])
+            .save_file();
+
+        if let Some(ref p) = path {
+            let session = crate::session::SessionData::from_app(self);
+            match session.save_to_file(p) {
+                Ok(()) => {
+                    self.session_path = Some(p.clone());
+                    self.last_session_path = Some(p.clone());
+                    self.pending_save_on_exit = false;
+                    return Some(p.clone());
+                }
+                Err(e) => {
+                    self.status_msg = Some(StatusMessage::Error(format!("Ошибка сохранения: {e}")));
+                    self.status_time = Some(Instant::now());
+                }
+            }
+        }
+
+        self.pending_save_on_exit = false;
+        None
+    }
+
+    /// Загрузить последнюю сессию, если она существует.
+    pub fn try_load_last_session(&mut self) {
+        let path = self.last_session_path.clone();
+        if let Some(ref path) = path {
+            if path.exists() {
+                match crate::session::SessionData::load_from_file(path) {
+                    Ok(session_data) => {
+                        session_data.apply_to_app(self);
+                        self.session_path = Some(path.clone());
+                        self.status_msg =
+                            Some(StatusMessage::Info(format!("Автозагрузка: {}", path.display())));
+                        self.status_time = Some(Instant::now());
+                    }
+                    Err(e) => {
+                        self.status_msg = Some(StatusMessage::Error(format!("Ошибка автозагрузки: {e}")));
+                        self.status_time = Some(Instant::now());
+                    }
+                }
+            }
+        }
+    }
+
+    /// Сгенерировать таблицу значений для указанного графика.
+    #[allow(dead_code)]
+    pub fn generate_values_table(&self, graph_index: usize, steps: usize) -> Option<Vec<(f64, f64)>> {
+        let graph = self.graphs.get(graph_index)?;
+        let data = graph.data.as_ref()?;
+        
+        let n = steps.clamp(2, 1000);
+        let x_range = self.viewport.x_max - self.viewport.x_min;
+        let x_step = x_range / (n - 1) as f64;
+        let x_start = self.viewport.x_min;
+        
+        let mut table = Vec::with_capacity(n);
+        for i in 0..n {
+            let x = x_start + i as f64 * x_step;
+            let y = data.points.get(i).map(|p| p.1).unwrap_or(f64::NAN);
+            table.push((x, y));
+        }
+        
+        Some(table)
+    }
+
+    /// Отрисовка окна таблицы значений.
+    #[allow(dead_code)]
+    fn render_values_table_ui(&mut self, ui: &mut egui::Ui) {
+        // Эта функция оставлена для обратной совместимости
+        let _ = ui;
+    }
+
+    /// Применить тему к egui Context.
+    pub fn apply_theme(&self, ctx: &egui::Context) {
+        let theme = self.current_theme.resolve(ctx);
+        let mut style = egui::Style::default();
+        style.visuals.extreme_bg_color = theme.egui_bg;
+        style.visuals.override_text_color = Some(theme.egui_text);
+        style.visuals.window_fill = theme.egui_bg;
+        style.visuals.panel_fill = theme.egui_bg;
+        
+        // egui 0.36.x: стили привязаны к теме (Dark/Light)
+        let egui_theme = if theme.egui_bg.r() < 128 {
+            egui::Theme::Dark
+        } else {
+            egui::Theme::Light
+        };
+        ctx.set_style_of(egui_theme, style);
+    }
+
+    /// Установить новую тему и сохранить в конфиг.
+    pub fn set_theme(&mut self, theme: ThemeKind) {
+        self.current_theme = theme;
+        let mut config = config::AppConfig::load();
+        config.theme = theme.to_string().to_lowercase();
+        let _ = config.save();
+    }
+}
+
+/// Данные для таблицы значений.
+#[derive(Clone, Debug)]
+struct ValuesTableData {
+    graph_label: String,
+    formula: String,
+    points: Vec<(f64, f64)>,
+}
+
+/// Отрисовка окна таблицы значений (standalone функция).
+fn render_values_table_ui(
+    ui: &mut egui::Ui,
+    table_steps: &mut usize,
+    x_min: f64,
+    x_max: f64,
+    table_data: Option<&ValuesTableData>,
+    graph_label: &Option<String>,
+) {
+    ui.heading("Таблица значений");
+    ui.add_space(8.0);
+
+    if let Some(data) = table_data {
+        // Количество шагов
+        let mut steps = *table_steps;
+        ui.horizontal(|ui| {
+            ui.label("Шагов:");
+            if ui.add(egui::Slider::new(&mut steps, 5..=100).text("количество")).changed() {
+                *table_steps = steps;
+            }
+        });
+
+        // Таблица
+        let n = steps.clamp(2, 1000);
+        let x_range = x_max - x_min;
+        let x_step = x_range / (n - 1) as f64;
+
+        ui.add_space(8.0);
+        ui.label(format!("График: {}  |  Формула: {}", data.graph_label, data.formula));
+        ui.separator();
+
+        // Используем Grid для таблицы
+        egui::Grid::new("values_grid")
+            .striped(true)
+            .spacing([40.0, 8.0])
+            .show(ui, |ui| {
+                ui.strong("X");
+                ui.strong("Y");
+                ui.end_row();
+
+                for i in 0..n {
+                    let x = x_min + i as f64 * x_step;
+                    let y = data.points.get(i).map(|p| p.1).unwrap_or(f64::NAN);
+                    
+                    ui.label(format!("{:.4}", x));
+                    if y.is_nan() {
+                        ui.label("—");
+                    } else {
+                        ui.label(format!("{:.4}", y));
+                    }
+                    ui.end_row();
+                }
+            });
+    } else {
+        ui.label("Выберите график для отображения таблицы");
+        if let Some(ref label) = graph_label {
+            ui.label(format!("Выбран: {}", label));
+        }
+    }
+}
+
+impl eframe::App for PlotApp {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        let ctx = ui.ctx().clone();
+        
+        // Применяем тему в начале каждого кадра
+        self.apply_theme(&ctx);
+        
+        // --- Запрос на сохранение сессии при выходе ---
+        // 1. Проверяем, нажал ли пользователь на крестик окна
+        if ctx.input(|i| i.viewport().close_requested()) {
+            // Показываем диалог только если есть несохранённые изменения
+            if !self.is_ready_to_close && self.has_unsaved_changes {
+                // Отменяем автоматическое закрытие приложения
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                // Показываем свое диалоговое окно подтверждения
+                self.show_save_dialog = true;
+            }
+        }
+
+        // 2. Отрисовываем диалог подтверждения поверх основного интерфейса
+        if self.show_save_dialog {
+            let mut save_file = false;
+            let mut close_without_save = false;
+            let mut cancel = false;
+            
+            egui::Window::new("Сохранить сессию?")
+                .resizable(false)
+                .collapsible(false)
+                .show(&ctx, |ui| {
+                    ui.label("Вы хотите сохранить сессию перед выходом?");
+                    ui.horizontal(|ui| {
+                        if ui.button("Сохранить").clicked() {
+                            save_file = true;
+                        }
+                        if ui.button("Не сохранять").clicked() {
+                            close_without_save = true;
+                        }
+                        if ui.button("Отмена").clicked() {
+                            cancel = true;
+                        }
+                    });
+                });
+
+            if save_file {
+                // 3. Если пользователь нажал "Сохранить" — показываем диалог сохранения
+                let path = rfd::FileDialog::new()
+                    .set_file_name("plot_session.json")
+                    .add_filter("JSON", &["json"])
+                    .save_file();
+
+                if let Some(p) = path {
+                    let session = crate::session::SessionData::from_app(self);
+                    if session.save_to_file(&p).is_ok() {
+                        self.session_path = Some(p.clone());
+                        self.last_session_path = Some(p.clone());
+                        self.has_unsaved_changes = false;
+                        let mut config = config::AppConfig::load();
+                        config.last_session_path = Some(p.to_string_lossy().to_string());
+                        let _ = config.save();
+                        self.status_msg = Some(StatusMessage::Info("Сессия сохранена".to_string()));
+                        self.status_time = Some(Instant::now());
+                    }
+                }
+                self.show_save_dialog = false;
+                self.pending_save_on_exit = false;
+                // Готовимся к закрытию
+                self.is_ready_to_close = true;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            } else if close_without_save {
+                self.show_save_dialog = false;
+                self.pending_save_on_exit = false;
+                // Готовимся к закрытию — на следующем кадре close_requested() не покажет диалог
+                self.is_ready_to_close = true;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            } else if cancel {
+                // Отмена — просто закрываем диалог, приложение остаётся открытым
+                self.show_save_dialog = false;
+            }
+
+            // Не показываем основной интерфейс
+            return;
+        }
+
+        // --- Горячие клавиши ---
+        let input = ui.input(|i| i.clone());
+        let ctrl = input.modifiers.ctrl || input.modifiers.command;
+
+        // Ctrl+Z — отмена
+        if input.key_pressed(egui::Key::Z) && ctrl && !input.modifiers.shift
+            && self.undo() {
+            self.status_msg = Some(StatusMessage::Info("Отменено".to_string()));
+            self.status_time = Some(Instant::now());
+        }
+
+        // Ctrl+Shift+Z или Ctrl+Y — повтор
+        if ((input.key_pressed(egui::Key::Z) && input.modifiers.shift && ctrl)
+            || (input.key_pressed(egui::Key::Y) && ctrl))
+            && self.redo()
+        {
+            self.status_msg = Some(StatusMessage::Info("Повторено".to_string()));
+            self.status_time = Some(Instant::now());
+        }
+
+        // Ctrl+N — новый график
+        if input.key_pressed(egui::Key::N) && ctrl {
+            let palette = [
+                Color32::from_rgb(150, 255, 150),
+                Color32::from_rgb(255, 255, 100),
+                Color32::from_rgb(200, 100, 255),
+                Color32::from_rgb(100, 255, 200),
+            ];
+            let idx = self.graphs.len();
+            let color = palette[idx % palette.len()];
+            self.graphs
+                .push(GraphEntry::new(&format!("f{}", idx + 1), color, "x"));
+            self.selected_graph = Some(self.graphs.len() - 1);
+            self.has_unsaved_changes = true;
+            self.save_snapshot();
+            self.recompute_all();
+        }
+
+        // Ctrl+O — загрузить сессию
+        if input.key_pressed(egui::Key::O) && ctrl {
+            let path = rfd::FileDialog::new()
+                .add_filter("JSON", &["json"])
+                .pick_file();
+            if let Some(ref p) = path {
+                match session::SessionData::load_from_file(p) {
+                    Ok(session_data) => {
+                        session_data.apply_to_app(self);
+                        self.session_path = Some(p.clone());
+                        self.last_session_path = Some(p.clone());
+                        self.pending_save_on_exit = false;
+                        self.has_unsaved_changes = false;
+                        // Сохраняем путь в config
+                        let mut config = config::AppConfig::load();
+                        config.last_session_path = Some(p.to_string_lossy().to_string());
+                        let _ = config.save();
+                        self.status_msg =
+                            Some(StatusMessage::Info(format!("Загружено: {}", p.display())));
+                        self.status_time = Some(Instant::now());
+                    }
+                    Err(e) => {
+                        self.status_msg = Some(StatusMessage::Error(format!("Ошибка: {e}")));
+                        self.status_time = Some(Instant::now());
+                    }
+                }
+            }
+        }
+
+        // Delete — удалить выбранный график
+        if input.key_pressed(egui::Key::Delete) && self.graphs.len() > 1 {
+            if let Some(idx) = self.selected_graph {
+                if idx < self.graphs.len() {
+                    self.graphs.remove(idx);
+                    // Корректировка selected_graph
+                    if idx >= self.graphs.len() {
+                        self.selected_graph = Some(self.graphs.len() - 1);
+                    } else {
+                        self.selected_graph = Some(idx);
+                    }
+                    self.has_unsaved_changes = true;
+                    self.save_snapshot();
+                    self.recompute_all();
+                }
+            }
+        }
+
+        // R — сбросить масштаб
+        if input.key_pressed(egui::Key::R) && !ctrl {
+            self.viewport = Viewport::new();
+            self.x_min = self.viewport.x_min;
+            self.x_max = self.viewport.x_max;
+            self.auto_y = true;
+            self.recompute_all();
+        }
+
+        // F5 / Ctrl+Enter — принудительная перерасчёт
+        if input.key_pressed(egui::Key::F5) || (input.key_pressed(egui::Key::Enter) && ctrl) {
+            self.recompute_all();
+        }
+
+        // Автоматический пересчёт dirty графиков
+        self.recompute_all();
+
+        // --- Левая панель управления ---
+        egui::Panel::left("controls")
+            .resizable(true)
+            .default_size(260.0)
+            .show(ui, |ui| {
+                crate::ui::controls::show_controls_panel(self, &ctx, ui);
+            });
+
+        // --- Центральная область: холст для графиков ---
+        egui::CentralPanel::default().show(ui, |ui| {
+            crate::ui::canvas::show_canvas_panel(self, &ctx, ui);
+        });
+
+        // --- Окна помощи и "О программе" ---
+        egui::Window::new("Помощь")
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .resizable(true)
+            .open(&mut self.show_help_window)
+            .show(&ctx, |ui| {
+                crate::ui::controls::render_help_content(ui);
+            });
+
+        // Для окна "О программе" — извлекаем current_theme до borrow
+        let current_theme = self.current_theme;
+        egui::Window::new("О программе")
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .resizable(false)
+            .open(&mut self.show_about_window)
+            .show(&ctx, |ui| {
+                crate::ui::controls::render_about_content(ui, &current_theme);
+            });
+        // Применяем тему после закрытия окна
+        if self.show_about_window {
+            // Тема применяется автоматически через apply_theme() в начале ui()
+        }
+
+        // Окно таблицы значений
+        egui::Window::new("Таблица значений")
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .resizable(true)
+            .open(&mut self.show_values_table)
+            .show(&ctx, |ui| {
+                // Извлекаем данные для таблицы, чтобы избежать borrow conflicts
+                let table_data = self.values_table_graph_index.and_then(|idx| {
+                    if idx < self.graphs.len() {
+                        let graph = &self.graphs[idx];
+                        graph.data.as_ref().map(|data| ValuesTableData {
+                            graph_label: graph.style.label.clone(),
+                            formula: graph.formula_text.clone(),
+                            points: data.points.clone(),
+                        })
+                    } else {
+                        None
+                    }
+                });
+
+                let x_min = self.viewport.x_min;
+                let x_max = self.viewport.x_max;
+                let graph_label = self.values_table_graph_index.and_then(|idx| {
+                    if idx < self.graphs.len() {
+                        Some(self.graphs[idx].style.label.clone())
+                    } else {
+                        None
+                    }
+                });
+
+                render_values_table_ui(ui, &mut self.values_table_steps, x_min, x_max, table_data.as_ref(), &graph_label);
+            });
+
+        // --- Обработка скриншота ---
+        if self.should_capture {
+            let screenshot = ctx.input(|i| {
+                i.raw.events.iter().find_map(|event| {
+                    if let egui::Event::Screenshot { image, .. } = event {
+                        Some(image.clone())
+                    } else {
+                        None
+                    }
+                })
+            });
+            if let Some(screenshot) = screenshot {
+                self.should_capture = false;
+                
+                if let (Some(rect), Some(ref save_path)) = (self.graph_rect, &self.save_path) {
+                    if let Err(e) = save_rect_to_png(&screenshot, rect, save_path) {
+                        self.status_msg = Some(StatusMessage::Error(format!("Ошибка PNG: {e}")));
+                        self.status_time = Some(Instant::now());
+                    }
+                }
+                self.save_path = None;
             }
         }
     }

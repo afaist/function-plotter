@@ -2,7 +2,6 @@
 /log
 *.db
 *.log
-Cargo.lock
 *.csv
 *.bak
 *.db*

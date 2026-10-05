@@ -15,6 +15,49 @@ pub use export::save_dialog;
 pub use export::open_csv_dialog;
 pub use export::load_csv;
 
+fn main() -> eframe::Result {
+    let config = config::AppConfig::load();
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size((config.window_width as f32, config.window_height as f32))
+            .with_min_inner_size((600.0, 400.0)),
+        ..Default::default()
+    };
+
+    eframe::run_native(
+        "Function Plotter",
+        options,
+        Box::new(|_cc| {
+            let mut app = app::PlotApp::default();
+
+            // Загружаем конфигурацию и инициализируем last_session_path
+            let config = config::AppConfig::load();
+            if let Some(ref path_str) = config.last_session_path {
+                app.last_session_path = Some(PathBuf::from(path_str));
+            }
+
+            // Инициализируем тему из config
+            app.current_theme = theme::ThemeKind::from_string(&config.theme)
+                .unwrap_or(theme::ThemeKind::Dark);
+
+            // Восстанавливаем размер окна из config
+            app.restore_window_size();
+
+            // Проверяем auto-load
+            if config.auto_load_last_session {
+                app.try_load_last_session();
+            }
+
+            // Устанавливаем флаг: если сессия не сохранена — нужно предложить при выходе
+            if app.session_path.is_none() {
+                app.pending_save_on_exit = true;
+            }
+
+            Ok(Box::new(app))
+        }),
+    )
+}
+
 #[cfg(test)]
 mod app_tests {
     use egui::Color32;
@@ -70,8 +113,6 @@ mod app_tests {
         assert!(intersections.is_empty(), "Нужны минимум 2 графика");
     }
 
-    // --- Тесты формулы: симуляция пользовательского ввода ---
-
     #[test]
     fn test_graph_initial_formula_x() {
         let graph = GraphEntry::new("f1", Color32::RED, "x");
@@ -124,14 +165,14 @@ mod app_tests {
         let mut app = PlotApp::default();
         assert_eq!(app.graphs[0].formula_text, "sin(x)");
         assert_eq!(app.graphs[1].formula_text, "x^2 / 10");
-        
+
         app.graphs[0].formula_text = "!!!".to_string();
         app.graphs[0].reparse();
         assert!(app.graphs[0].parsed.is_none(), "Первый график не должен парситься");
         assert!(app.graphs[0].parse_error.is_some(), "Первый график должен иметь parse_error");
         assert!(app.graphs[1].parsed.is_some(), "Второй график должен оставаться валидным");
         assert!(app.graphs[1].parse_error.is_none(), "Второй график не должен иметь parse_error");
-        
+
         app.graphs[0].formula_text = "cos(x)".to_string();
         app.graphs[0].reparse();
         assert!(app.graphs[0].parsed.is_some(), "cos(x) должен парситься");
@@ -148,16 +189,14 @@ mod app_tests {
         assert!(app.graphs[1].data.is_some(), "Валидный график должен иметь данные");
     }
 
-    // --- Тесты слайдеров для квадратичных функций ---
-
     #[test]
     fn test_extract_coeffs_with_minus_c() {
         let mut graph = GraphEntry::new("f1", Color32::RED, "x^2-5");
         assert!(graph.is_quadratic());
-        
+
         let extracted = graph.extract_quadratic_coeffs();
         assert!(extracted, "Коэффициенты должны извлечься");
-        
+
         assert_eq!(graph.slider_a, 1.0, "a должно быть 1");
         assert_eq!(graph.slider_b, 0.0, "b должно быть 0");
         assert_eq!(graph.slider_c, -5.0, "c должно быть -5");
@@ -167,10 +206,10 @@ mod app_tests {
     fn test_extract_coeffs_with_plus_c() {
         let mut graph = GraphEntry::new("f1", Color32::RED, "x^2+3");
         assert!(graph.is_quadratic());
-        
+
         let extracted = graph.extract_quadratic_coeffs();
         assert!(extracted, "Коэффициенты должны извлечься");
-        
+
         assert_eq!(graph.slider_a, 1.0, "a должно быть 1");
         assert_eq!(graph.slider_b, 0.0, "b должно быть 0");
         assert_eq!(graph.slider_c, 3.0, "c должно быть 3");
@@ -180,10 +219,10 @@ mod app_tests {
     fn test_extract_coeffs_negative_c() {
         let mut graph = GraphEntry::new("f1", Color32::RED, "2*x^2+3*x-7");
         assert!(graph.is_quadratic());
-        
+
         let extracted = graph.extract_quadratic_coeffs();
         assert!(extracted, "Коэффициенты должны извлечься");
-        
+
         assert_eq!(graph.slider_a, 2.0, "a должно быть 2");
         assert_eq!(graph.slider_b, 3.0, "b должно быть 3");
         assert_eq!(graph.slider_c, -7.0, "c должно быть -7");
@@ -191,13 +230,12 @@ mod app_tests {
 
     #[test]
     fn test_extract_coeffs_with_spaces() {
-        // Тест для формулы с пробелами: "4*x^2 + 3*x - 3"
         let mut graph = GraphEntry::new("f1", Color32::RED, "4*x^2 + 3*x - 3");
         assert!(graph.is_quadratic());
-        
+
         let extracted = graph.extract_quadratic_coeffs();
         assert!(extracted, "Коэффициенты должны извлечься");
-        
+
         assert_eq!(graph.slider_a, 4.0, "a должно быть 4");
         assert_eq!(graph.slider_b, 3.0, "b должно быть 3");
         assert_eq!(graph.slider_c, -3.0, "c должно быть -3");
@@ -210,57 +248,12 @@ mod app_tests {
         graph.slider_b = 3.0;
         graph.slider_c = -5.0;
         graph.use_sliders = true;
-        
+
         graph.apply_sliders();
-        
+
         assert!(graph.formula_text.contains("2"), "Формула должна содержать 2*x^2");
         assert!(graph.formula_text.contains("3"), "Формула должна содержать 3*x");
         assert!(graph.formula_text.contains("5"), "Формула должна содержать 5");
         assert!(graph.parsed.is_some(), "Формула должна парситься");
     }
-}
-
-fn main() -> eframe::Result {
-    // Загружаем конфигурацию
-    let config = config::AppConfig::load();
-
-    let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size((config.window_width as f32, config.window_height as f32))
-            .with_min_inner_size((600.0, 400.0)),
-        ..Default::default()
-    };
-
-    eframe::run_native(
-        "Function Plotter",
-        options,
-        Box::new(|_cc| {
-            let mut app = app::PlotApp::default();
-
-            // Загружаем конфигурацию и инициализируем last_session_path
-            let config = config::AppConfig::load();
-            if let Some(ref path_str) = config.last_session_path {
-                app.last_session_path = Some(PathBuf::from(path_str));
-            }
-
-            // Инициализируем тему из config
-            app.current_theme = theme::ThemeKind::from_string(&config.theme)
-                .unwrap_or(theme::ThemeKind::Dark);
-
-            // Восстанавливаем размер окна из config
-            app.restore_window_size();
-
-            // Проверяем auto-load
-            if config.auto_load_last_session {
-                app.try_load_last_session();
-            }
-
-            // Устанавливаем флаг: если сессия не сохранена — нужно предложить при выходе
-            if app.session_path.is_none() {
-                app.pending_save_on_exit = true;
-            }
-
-            Ok(Box::new(app))
-        }),
-    )
 }

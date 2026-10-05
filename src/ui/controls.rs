@@ -14,6 +14,7 @@ use crate::theme::Theme;
 
 /// Отрисовка одной записи графика в левой панели.
 /// Возвращает true, если были изменения.
+#[allow(clippy::too_many_arguments)]
 fn render_graph_entry(
     ui: &mut Ui,
     app: &mut PlotApp,
@@ -521,7 +522,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         }
     });
     ui.horizontal(|ui| {
-        if ui.button(app.auto_y.then_some("⟳ Авто Y").unwrap_or("⟳ Авто Y (выкл)")).clicked() {
+        if ui.button(if app.auto_y { "⟳ Авто Y" } else { "⟳ Авто Y (выкл)" }).clicked() {
             app.auto_y = !app.auto_y;
             app.has_unsaved_changes = true;
             need_save_snapshot = true;
@@ -560,7 +561,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                 }
             });
         if selected != current {
-            if let Some(theme_kind) = crate::theme::ThemeKind::from_string(&selected) {
+            if let Some(theme_kind) = crate::theme::ThemeKind::from_string(selected) {
                 app.set_theme(theme_kind);
                 ui.ctx().request_repaint();
             }

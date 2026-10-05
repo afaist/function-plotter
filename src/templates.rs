@@ -1,5 +1,5 @@
 /// Библиотека шаблонов функций для быстрого добавления.
-
+///
 /// Шаблон функции.
 #[derive(Clone, Debug)]
 pub struct FunctionTemplate {

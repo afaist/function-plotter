@@ -69,39 +69,6 @@ impl Viewport {
     }
 }
 
-/// Отрисовка одного графика по точкам.
-#[allow(dead_code)]
-pub fn draw_curve(
-    painter: &Painter,
-    rect: Rect,
-    viewport: &Viewport,
-    points: &[(f64, f64)],
-    style: &PlotStyle,
-) {
-    if !style.visible {
-        return;
-    }
-
-    let stroke = Stroke::new(1.5_f32, style.color);
-    let mut screen_points: Vec<Pos2> = Vec::with_capacity(points.len());
-
-    for &(x, y) in points {
-        if !y.is_finite() {
-            // Разрыв линии — отрисовываем накопленный сегмент
-            if screen_points.len() >= 2 {
-                painter.add(egui::Shape::line(screen_points.clone(), stroke));
-            }
-            screen_points.clear();
-            continue;
-        }
-        screen_points.push(viewport.math_to_screen(x, y, rect));
-    }
-
-    if screen_points.len() >= 2 {
-        painter.add(egui::Shape::line(screen_points, stroke));
-    }
-}
-
 /// Отрисовка закрашенной области под кривой (для интегралов).
 pub fn draw_filled_curve(
     painter: &Painter,
@@ -350,6 +317,32 @@ fn draw_dashed_line(painter: &Painter, points: &[Pos2], stroke: Stroke, dash: (f
     }
 }
 
+/// Подобрать «красивый» шаг сетки (округление к 1, 2, 5, 10 и т.п.).
+fn nice_step(step: f64) -> f64 {
+    if step == 0.0 {
+        return 1.0;
+    }
+    let mag = 10.0_f64.powf(step.abs().log10().floor());
+    let unit = step / mag;
+
+    let candidates = [1.0, 2.0, 5.0];
+    let target = unit;
+
+    let best = candidates
+        .iter()
+        .min_by(|a, b| {
+            let diff_a = (*a - target).abs();
+            let diff_b = (*b - target).abs();
+            diff_a
+                .partial_cmp(&diff_b)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .copied()
+        .unwrap_or(1.0);
+
+    best * mag
+}
+
 /// Отрисовка осей координат и сетки.
 pub fn draw_axes(painter: &Painter, rect: Rect, viewport: &Viewport, theme: &Theme) {
     let axis_color = theme.axis_color;
@@ -365,34 +358,6 @@ pub fn draw_axes(painter: &Painter, rect: Rect, viewport: &Viewport, theme: &The
     // Адаптивный шаг по X и Y: хотим примерно base_grid_count делений
     let step_x = width / base_grid_count as f64;
     let step_y = height / base_grid_count as f64;
-
-    //
-    // Подбираем «красивый» шаг (округлённый к 1, 2, 5, 10 и т.п.)
-    fn nice_step(step: f64) -> f64 {
-        if step == 0.0 {
-            return 1.0;
-        }
-        let mag = 10.0_f64.powf(step.abs().log10().floor());
-        let unit = step / mag;
-
-        let candidates = [1.0, 2.0, 5.0];
-        let target = unit;
-
-        let best = candidates
-            .iter()
-            .min_by(|a, b| {
-                // Разыменовываем ссылки: *a и *b
-                let diff_a = (*a - target).abs();
-                let diff_b = (*b - target).abs();
-                diff_a
-                    .partial_cmp(&diff_b)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })
-            .copied()
-            .unwrap_or(1.0);
-
-        best * mag
-    }
 
     let nice_step_x = nice_step(step_x);
     let nice_step_y = nice_step(step_y);

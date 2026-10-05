@@ -1,5 +1,15 @@
 use mathexpr::builder::{Executable, Expression};
 
+/// Скомпилировать константное выражение (без переменных) в f64.
+/// Возвращает NaN при ошибке.
+fn compile_const(expr_str: &str) -> f64 {
+    Expression::parse(expr_str)
+        .ok()
+        .and_then(|e| e.compile_no_vars().ok())
+        .and_then(|e| e.eval(&[]).ok())
+        .unwrap_or(f64::NAN)
+}
+
 /// Тип формулы: обычная, производная, интеграл, полярная или параметрическая.
 #[derive(Clone, Debug, PartialEq)]
 pub enum FormulaType {
@@ -43,11 +53,7 @@ impl ParsedFormula {
         match self {
             Self::Regular { compiled } => compiled.clone().eval(&[x]).unwrap_or(f64::NAN),
             Self::Derivative { inner } => inner.eval(x),
-            Self::Integral {
-                inner: _,
-                lower: _,
-                upper: _,
-            } => f64::NAN,
+            Self::Integral { .. } => f64::NAN,
             Self::Polar { inner, .. } => inner.eval(x),
             Self::Parametric { x_formula, .. } => x_formula.eval(x),
         }
@@ -243,21 +249,8 @@ pub fn parse(input: &str) -> Result<ParsedFormula, String> {
             let inner = parse(inner_expr).map_err(|e| format!("polar: {e}"))?;
 
             // Парсим границы theta как выражения (должны быть константами)
-            let theta_min_expr =
-                Expression::parse(theta_min_str).map_err(|e| format!("Граница theta_min: {e}"))?;
-            let theta_min = theta_min_expr
-                .compile_no_vars()
-                .ok()
-                .and_then(|e| e.eval(&[]).ok())
-                .unwrap_or(f64::NAN);
-
-            let theta_max_expr =
-                Expression::parse(theta_max_str).map_err(|e| format!("Граница theta_max: {e}"))?;
-            let theta_max = theta_max_expr
-                .compile_no_vars()
-                .ok()
-                .and_then(|e| e.eval(&[]).ok())
-                .unwrap_or(f64::NAN);
+            let theta_min = compile_const(theta_min_str);
+            let theta_max = compile_const(theta_max_str);
 
             if !theta_min.is_finite() || !theta_max.is_finite() {
                 return Err("Границы theta должны быть конечными числами".into());

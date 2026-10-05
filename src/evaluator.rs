@@ -154,7 +154,7 @@ impl PlotData {
             // Вершина — точка с минимальным y
             if let Some((v_x, v_y)) = points.iter()
                 .filter(|(_, y)| y.is_finite())
-                .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+                .min_by(|a, b| a.1.partial_cmp(&b.1).expect("finite y values"))
             {
                 vertex = Some((*v_x, *v_y));
             }
@@ -291,7 +291,6 @@ impl PlotData {
         let y0 = formula.eval(x0);
         let x1 = (x0 + x2) / 2.0;
         let y1 = formula.eval(x1);
-        let x2_val = x2;
         let y2 = formula.eval(x2);
 
         // Вычисляем отклонение средней точки от линейной интерполяции
@@ -301,7 +300,7 @@ impl PlotData {
         if max_depth > 0 && deviation > tolerance {
             // Рекурсивно subdivison левую и правую половины
             Self::adaptive_subdivision(formula, x0, x1, max_depth - 1, tolerance, points);
-            Self::adaptive_subdivision(formula, x1, x2_val, max_depth - 1, tolerance, points);
+            Self::adaptive_subdivision(formula, x1, x2, max_depth - 1, tolerance, points);
         } else {
             // Добавляем только концы отрезка (середина уже добавлена на предыдущем уровне)
             if y0.is_finite() {
@@ -313,7 +312,7 @@ impl PlotData {
             }
             if y2.is_finite() {
                 points.push(AdaptivePoint {
-                    x: x2_val,
+                    x: x2,
                     y: y2,
                     curvature: deviation,
                 });
