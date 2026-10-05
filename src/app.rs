@@ -60,6 +60,8 @@ pub struct GraphEntry {
     pub slider_c: f64,
     /// Флаг: пользователь редактирует формулу (для авто-скрытия графика)
     pub is_editing: bool,
+    /// Формула до начала редактирования (для сравнения после)
+    pub formula_before_edit: String,
 }
 
 impl GraphEntry {
@@ -81,6 +83,7 @@ impl GraphEntry {
             slider_b: 0.0,
             slider_c: 0.0,
             is_editing: false,
+            formula_before_edit: formula.to_string(),
         };
         entry.reparse();
         entry
@@ -105,6 +108,7 @@ impl GraphEntry {
             slider_b: 0.0,
             slider_c: 0.0,
             is_editing: false,
+            formula_before_edit: String::new(),
         };
         entry.recompute_from_raw();
         entry

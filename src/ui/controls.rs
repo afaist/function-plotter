@@ -15,6 +15,7 @@ use crate::renderer::Viewport;
 /// Возвращает true, если были изменения.
 fn render_graph_entry(
     ui: &mut Ui,
+    app: &mut PlotApp,
     i: usize,
     color: Color32,
     _label: &str,
@@ -31,6 +32,7 @@ fn render_graph_entry(
     slider_b: &mut f64,
     slider_c: &mut f64,
     need_auto_extract: &mut bool,
+    need_reparse: &mut bool,
     is_editing: &mut bool,
 ) -> bool {
     let mut changed = false;
@@ -65,24 +67,39 @@ fn render_graph_entry(
     }
     
     // Строка формулы — клик выделяет график
+    // formula — это &mut String, egui обновляет его напрямую
     let text_edit = egui::TextEdit::singleline(formula).desired_width(f32::INFINITY);
     let text_output = text_edit.show(ui);
     
     // Логика авто-скрытия при редактировании формулы
     if !has_raw_data {
-        // При получении фокуса — скрываем график
+        // При получении фокуса — скрываем график и запоминаем старую формулу
         if text_output.response.gained_focus() && !*is_editing {
             *visible = false;
             *is_editing = true;
             changed = true;
+            // Запоминаем формулу ДО редактирования в app state
+            app.graphs[i].formula_before_edit = formula.clone();
         }
         
         // При потере фокуса — пересчитываем и показываем
         if text_output.response.lost_focus() && *is_editing {
-            *need_recompute = true;
             *visible = true; // показываем после редактирования
             *is_editing = false;
             changed = true;
+            // Помечаем, что нужно пересчитать график
+            *need_recompute = true;
+            // Если формула изменилась — вызываем reparse
+            if formula.trim() != app.graphs[i].formula_before_edit {
+                *need_reparse = true;
+            }
+        }
+        
+        // Если формула изменилась и поле НЕ в фокусе — пересчитываем
+        if !text_output.response.has_focus() && *is_editing && !formula.is_empty() {
+            *is_editing = false;
+            *need_reparse = true;
+            *need_recompute = true;
         }
     }
     
@@ -206,6 +223,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     // Список графиков
     let mut any_changed = false;
     let mut any_reparse = false;
+    let mut selected_graph = app.selected_graph; // выносим в локальную переменную для избежания borrow conflicts
     // Предварительно вычисляем типы формул для всех графиков (чтобы избежать borrow conflicts)
     let formula_types: Vec<Option<(Color32, String, String)>> = app.graphs.iter().map(|g| {
         g.formula_type_info().map(|(c, _icon, l)| (c, l.to_string(), l.to_string()))
@@ -216,15 +234,16 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         let color = app.graphs[i].style.color;
         let label = app.graphs[i].style.label.clone();
         let mut visible = app.graphs[i].style.visible;
-        let mut formula = app.graphs[i].formula_text.clone();
-        let old_formula = app.graphs[i].formula_text.clone(); // сохраняем предыдущее значение
-        let parse_error = app.graphs[i].parse_error.clone();
+        let mut parse_error = app.graphs[i].parse_error.clone();
         let mut use_sliders = app.graphs[i].use_sliders;
         let mut slider_a = app.graphs[i].slider_a;
         let mut slider_b = app.graphs[i].slider_b;
         let mut slider_c = app.graphs[i].slider_c;
         let mut need_auto_extract = false;
+        let mut need_reparse = false;
         let mut is_editing = app.graphs[i].is_editing;
+        // Локальная копия формулы для egui
+        let mut formula = app.graphs[i].formula_text.clone();
 
         let mut changed = false;
         ui.push_id(i, |ui| {
@@ -237,13 +256,14 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                 frame.show(ui, |ui| {
                     changed = render_graph_entry(
                         ui,
+                        app,
                         i,
                         color,
                         &label,
                         &mut visible,
                         &mut formula,
                         &parse_error,
-                        &mut app.selected_graph,
+                        &mut selected_graph,
                         &mut need_remove,
                         &mut need_recompute,
                         formula_types[i].clone(),
@@ -253,19 +273,21 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                         &mut slider_b,
                         &mut slider_c,
                         &mut need_auto_extract,
+                        &mut need_reparse,
                         &mut is_editing,
                     );
                 });
             } else {
                 changed = render_graph_entry(
                     ui,
+                    app,
                     i,
                     color,
                     &label,
                     &mut visible,
                     &mut formula,
                     &parse_error,
-                    &mut app.selected_graph,
+                    &mut selected_graph,
                     &mut need_remove,
                     &mut need_recompute,
                     formula_types[i].clone(),
@@ -275,10 +297,14 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                     &mut slider_b,
                     &mut slider_c,
                     &mut need_auto_extract,
+                    &mut need_reparse,
                     &mut is_editing,
                 );
             }
         });
+
+        // Синхронизируем формулу обратно в app после egui
+        app.graphs[i].formula_text = formula.clone();
 
         // Применяем изменения
         if let Some(g) = app.graphs.get_mut(i) {
@@ -289,26 +315,22 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
             g.slider_b = slider_b;
             g.slider_c = slider_c;
             g.is_editing = is_editing;
+            // Обновляем parse_error из локальной переменной
+            g.parse_error = parse_error.clone();
             
-            // Если нажата кнопка "Авто" — извлекаем коэффициенты
-            if need_auto_extract {
-                g.extract_quadratic_coeffs();
-                changed = true;
-            }
-            
-            // Если слайдеры включены и значения изменились — применяем формулу
-            if use_sliders && changed {
-                g.apply_sliders();
-            } else if g.raw_data.is_none() {
-                // Иначе применяем формулу из текстового поля
-                let new_formula = formula.clone();
-                if new_formula != old_formula {
-                    g.formula_text = new_formula.clone();
-                    // Вызываем reparse только при потере фокуса (is_editing == false)
-                    if !is_editing {
-                        g.reparse();
-                        any_reparse = true;
-                    }
+            // Обновляем формулу и вызываем reparse если нужно
+            if g.raw_data.is_none() {
+                // Если нажата кнопка "Авто" — извлекаем коэффициенты из формулы
+                if need_auto_extract {
+                    g.extract_quadratic_coeffs();
+                }
+                
+                // Вызываем reparse при потере фокуса (need_reparse == true)
+                if need_reparse {
+                    g.reparse();
+                    // Обновляем parse_error после reparse
+                    parse_error = g.parse_error.clone();
+                    any_reparse = true;
                 }
             }
         }
@@ -319,6 +341,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
             any_changed = true;
         }
     }
+    app.selected_graph = selected_graph;
 
     // Если был reparse — пересчитываем графики
     if any_reparse {
