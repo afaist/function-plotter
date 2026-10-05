@@ -491,7 +491,7 @@ impl Default for PlotApp {
         app.graphs.push(GraphEntry::new(
             "f2",
             Color32::from_rgb(255, 150, 100),
-            "x^2 / 10",
+            "1/10*x^2+0.1*x-3",
         ));
         app.recompute_all();
         app
