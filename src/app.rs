@@ -310,15 +310,29 @@ impl GraphEntry {
             let mut result = 0.0;
             
             // Ищем последнее число (не связанное с x)
-            if let Some(last_plus) = text.rfind(" + ") {
-                let num_str = &text[last_plus + 3..];
-                if let Ok(val) = num_str.parse::<f64>() {
-                    result = val;
+            // Разбиваем по "+" и "-", но пропускаем те, что перед x
+            let mut last_sign_pos = None;
+            let mut last_sign_is_minus = false;
+            
+            for (i, _) in text.char_indices() {
+                let ch = text[i..].chars().next().unwrap();
+                if ch == '+' || ch == '-' {
+                    // Проверяем, что это не начало строки и не после ^
+                    if i > 0 {
+                        let before_char = text.chars().nth(i - 1).unwrap();
+                        if before_char != '^' {
+                            last_sign_pos = Some(i);
+                            last_sign_is_minus = (ch == '-');
+                        }
+                    }
                 }
-            } else if let Some(last_minus) = text.rfind(" - ") {
-                let num_str = &text[last_minus + 3..];
-                if let Ok(val) = num_str.parse::<f64>() {
-                    result = -val;
+            }
+            
+            if let Some(pos) = last_sign_pos {
+                let after = &text[pos + 1..];
+                let after = after.trim();
+                if let Ok(val) = after.parse::<f64>() {
+                    result = if last_sign_is_minus { -val } else { val };
                 }
             }
             

@@ -146,6 +146,63 @@ mod app_tests {
         assert!(app.graphs[0].data.is_none(), "Невалидный график не должен иметь данных");
         assert!(app.graphs[1].data.is_some(), "Валидный график должен иметь данные");
     }
+
+    // --- Тесты слайдеров для квадратичных функций ---
+
+    #[test]
+    fn test_extract_coeffs_with_minus_c() {
+        let mut graph = GraphEntry::new("f1", Color32::RED, "x^2-5");
+        assert!(graph.is_quadratic());
+        
+        let extracted = graph.extract_quadratic_coeffs();
+        assert!(extracted, "Коэффициенты должны извлечься");
+        
+        assert_eq!(graph.slider_a, 1.0, "a должно быть 1");
+        assert_eq!(graph.slider_b, 0.0, "b должно быть 0");
+        assert_eq!(graph.slider_c, -5.0, "c должно быть -5");
+    }
+
+    #[test]
+    fn test_extract_coeffs_with_plus_c() {
+        let mut graph = GraphEntry::new("f1", Color32::RED, "x^2+3");
+        assert!(graph.is_quadratic());
+        
+        let extracted = graph.extract_quadratic_coeffs();
+        assert!(extracted, "Коэффициенты должны извлечься");
+        
+        assert_eq!(graph.slider_a, 1.0, "a должно быть 1");
+        assert_eq!(graph.slider_b, 0.0, "b должно быть 0");
+        assert_eq!(graph.slider_c, 3.0, "c должно быть 3");
+    }
+
+    #[test]
+    fn test_extract_coeffs_negative_c() {
+        let mut graph = GraphEntry::new("f1", Color32::RED, "2*x^2+3*x-7");
+        assert!(graph.is_quadratic());
+        
+        let extracted = graph.extract_quadratic_coeffs();
+        assert!(extracted, "Коэффициенты должны извлечься");
+        
+        assert_eq!(graph.slider_a, 2.0, "a должно быть 2");
+        assert_eq!(graph.slider_b, 3.0, "b должно быть 3");
+        assert_eq!(graph.slider_c, -7.0, "c должно быть -7");
+    }
+
+    #[test]
+    fn test_apply_sliders_updates_formula() {
+        let mut graph = GraphEntry::new("f1", Color32::RED, "x^2");
+        graph.slider_a = 2.0;
+        graph.slider_b = 3.0;
+        graph.slider_c = -5.0;
+        graph.use_sliders = true;
+        
+        graph.apply_sliders();
+        
+        assert!(graph.formula_text.contains("2"), "Формула должна содержать 2*x^2");
+        assert!(graph.formula_text.contains("3"), "Формула должна содержать 3*x");
+        assert!(graph.formula_text.contains("5"), "Формула должна содержать 5");
+        assert!(graph.parsed.is_some(), "Формула должна парситься");
+    }
 }
 
 fn main() -> eframe::Result {

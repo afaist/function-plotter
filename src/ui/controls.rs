@@ -325,8 +325,18 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                     g.extract_quadratic_coeffs();
                 }
                 
+                // Если слайдеры включены и изменились — применяем формулу из слайдеров
+                if use_sliders && (slider_a != g.slider_a || slider_b != g.slider_b || slider_c != g.slider_c) {
+                    g.slider_a = slider_a;
+                    g.slider_b = slider_b;
+                    g.slider_c = slider_c;
+                    g.apply_sliders();
+                    // Обновляем parse_error после reparse
+                    parse_error = g.parse_error.clone();
+                    any_reparse = true;
+                }
                 // Вызываем reparse при потере фокуса (need_reparse == true)
-                if need_reparse {
+                else if need_reparse {
                     g.reparse();
                     // Обновляем parse_error после reparse
                     parse_error = g.parse_error.clone();
