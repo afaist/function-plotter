@@ -133,7 +133,7 @@ fn render_graph_entry(
 
     // Отображаем ошибку парсинга только для не-C графиков
     if !has_raw_data {
-        if let Some(ref err) = parse_error {
+        if let Some(err) = parse_error {
             ui.painter().rect_stroke(
                 text_output.response.rect,
                 4.0,
@@ -252,7 +252,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     let mut any_changed = false;
     let mut any_reparse = false;
     let mut selected_graph = app.selected_graph; // выносим в локальную переменную для избежания borrow conflicts
-                                                 // Предварительно вычисляем типы формул для всех графиков (чтобы избежать borrow conflicts)
+    // Предварительно вычисляем типы формул для всех графиков (чтобы избежать borrow conflicts)
     let formula_types: Vec<Option<(Color32, String, String)>> = app
         .graphs
         .iter()

@@ -1,6 +1,6 @@
 //! Центральная область: холст для отрисовки графиков, pan/zoom, легенда.
 
-use egui::{pos2, Context, Rect, Sense, Stroke, Ui, Vec2};
+use egui::{Context, Rect, Sense, Stroke, Ui, Vec2, pos2};
 
 use crate::app::PlotApp;
 use crate::renderer;

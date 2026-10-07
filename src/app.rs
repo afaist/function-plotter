@@ -1016,7 +1016,7 @@ impl PlotApp {
     pub fn save_snapshot(&mut self) {
         self.undo_stack.push(self.graphs.clone());
         self.redo_stack.clear(); // новое действие — очищаем redo
-                                 // Ограничить размер истории
+        // Ограничить размер истории
         if self.undo_stack.len() > self.max_history {
             self.undo_stack.remove(0);
         }
@@ -1173,11 +1173,14 @@ impl PlotApp {
         style.visuals.widgets.open.bg_fill = button_bg;
 
         // Рамка кнопок для контраста
-        style.visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(1.0, theme.egui_text.gamma_multiply(0.4));
-        style.visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, theme.egui_text.gamma_multiply(0.4));
+        style.visuals.widgets.noninteractive.bg_stroke =
+            egui::Stroke::new(1.0, theme.egui_text.gamma_multiply(0.4));
+        style.visuals.widgets.inactive.bg_stroke =
+            egui::Stroke::new(1.0, theme.egui_text.gamma_multiply(0.4));
         style.visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.5, theme.egui_accent);
         style.visuals.widgets.active.bg_stroke = egui::Stroke::new(1.5, theme.egui_accent);
-        style.visuals.widgets.open.bg_stroke = egui::Stroke::new(1.0, theme.egui_text.gamma_multiply(0.4));
+        style.visuals.widgets.open.bg_stroke =
+            egui::Stroke::new(1.0, theme.egui_text.gamma_multiply(0.4));
 
         // Кнопки с рамкой для контраста
         style.visuals.button_frame = true;
@@ -1268,7 +1271,7 @@ fn render_values_table_ui(
             });
     } else {
         ui.label("Выберите график для отображения таблицы");
-        if let Some(ref label) = graph_label {
+        if let Some(label) = graph_label {
             ui.label(format!("Выбран: {}", label));
         }
     }
@@ -1548,7 +1551,7 @@ impl eframe::App for PlotApp {
             if let Some(screenshot) = screenshot {
                 self.should_capture = false;
 
-                if let (Some(rect), Some(ref save_path)) = (self.graph_rect, &self.save_path) {
+                if let (Some(rect), Some(save_path)) = (self.graph_rect, &self.save_path) {
                     if let Err(e) = save_rect_to_png(&screenshot, rect, save_path) {
                         self.status_msg = Some(StatusMessage::Error(format!("Ошибка PNG: {e}")));
                         self.status_time = Some(Instant::now());
