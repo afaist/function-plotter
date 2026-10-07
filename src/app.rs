@@ -1140,21 +1140,54 @@ impl PlotApp {
     }
 
     /// Применить тему к egui Context.
-    pub fn apply_theme(&self, ctx: &egui::Context) {
-        let theme = self.current_theme.resolve(ctx);
-        let mut style = egui::Style::default();
+    pub fn apply_theme(&self, ui: &mut egui::Ui) {
+        let theme = self.current_theme.resolve(ui.ctx());
+
+        // Применяем стили к текущему Ui — Panel создаёт child Ui, который
+        // наследует стиль от родителя (this Ui), поэтому изменения здесь
+        // автоматически применяются ко всем виджетам внутри Panel
+        let style = ui.style_mut();
         style.visuals.extreme_bg_color = theme.egui_bg;
         style.visuals.override_text_color = Some(theme.egui_text);
         style.visuals.window_fill = theme.egui_bg;
         style.visuals.panel_fill = theme.egui_bg;
 
-        // egui 0.36.x: стили привязаны к теме (Dark/Light)
-        let egui_theme = if theme.egui_bg.r() < 128 {
-            egui::Theme::Dark
+        //Foreground (текст, иконки)
+        let fg = egui::Stroke::new(1.0, theme.egui_text);
+        style.visuals.widgets.noninteractive.fg_stroke = fg;
+        style.visuals.widgets.inactive.fg_stroke = fg;
+        style.visuals.widgets.hovered.fg_stroke = fg;
+        style.visuals.widgets.active.fg_stroke = fg;
+
+        // Фон кнопок — светлый для светлых тем, тёмный для тёмных
+        let is_light = theme.egui_bg.r() >= 128;
+        let button_bg = if is_light {
+            Color32::from_rgb(255, 255, 255)
         } else {
-            egui::Theme::Light
+            theme.egui_bg
         };
-        ctx.set_style_of(egui_theme, style);
+        style.visuals.widgets.noninteractive.bg_fill = button_bg;
+        style.visuals.widgets.inactive.bg_fill = button_bg;
+        style.visuals.widgets.hovered.bg_fill = theme.egui_button_hover;
+        style.visuals.widgets.active.bg_fill = theme.egui_selected;
+        style.visuals.widgets.open.bg_fill = button_bg;
+
+        // Рамка кнопок для контраста
+        style.visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(1.0, theme.egui_text.gamma_multiply(0.4));
+        style.visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, theme.egui_text.gamma_multiply(0.4));
+        style.visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.5, theme.egui_accent);
+        style.visuals.widgets.active.bg_stroke = egui::Stroke::new(1.5, theme.egui_accent);
+        style.visuals.widgets.open.bg_stroke = egui::Stroke::new(1.0, theme.egui_text.gamma_multiply(0.4));
+
+        // Кнопки с рамкой для контраста
+        style.visuals.button_frame = true;
+
+        // weak_bg_fill — это именно то, что egui использует для фона кнопок
+        style.visuals.widgets.noninteractive.weak_bg_fill = button_bg;
+        style.visuals.widgets.inactive.weak_bg_fill = button_bg;
+        style.visuals.widgets.hovered.weak_bg_fill = theme.egui_button_hover;
+        style.visuals.widgets.active.weak_bg_fill = theme.egui_selected;
+        style.visuals.widgets.open.weak_bg_fill = button_bg;
     }
 
     /// Установить новую тему и сохранить в конфиг.
@@ -1246,7 +1279,7 @@ impl eframe::App for PlotApp {
         let ctx = ui.ctx().clone();
 
         // Применяем тему в начале каждого кадра
-        self.apply_theme(&ctx);
+        self.apply_theme(ui);
 
         // --- Запрос на сохранение сессии при выходе ---
         // 1. Проверяем, нажал ли пользователь на крестик окна
