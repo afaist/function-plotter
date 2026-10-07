@@ -4,6 +4,7 @@ use egui::{Context, Rect, Sense, Stroke, Ui, Vec2, pos2};
 
 use crate::app::PlotApp;
 use crate::renderer;
+use crate::theme::FontConfig;
 
 /// Отрисовка центральной панели (canvas).
 pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
@@ -70,9 +71,9 @@ pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     painter.rect_filled(rect, 0.0, theme.canvas_bg);
 
     if app.polar_mode {
-        renderer::draw_polar_grid(&painter, rect, &app.viewport, &theme);
+        renderer::draw_polar_grid(&painter, rect, &app.viewport, &theme, &app.font_config);
     } else {
-        renderer::draw_axes(&painter, rect, &app.viewport, &theme);
+        renderer::draw_axes(&painter, rect, &app.viewport, &theme, &app.font_config);
     }
 
     for g in &app.graphs {
@@ -109,26 +110,27 @@ pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     for g in &app.graphs {
         if g.style.visible {
             if let Some(ref data) = g.data {
-                crate::renderer::draw_special_points(
-                    &painter,
-                    rect,
-                    &app.viewport,
-                    data.vertex,
-                    &data.roots,
-                    &g.style,
-                    &theme,
-                );
+            crate::renderer::draw_special_points(
+                &painter,
+                rect,
+                &app.viewport,
+                data.vertex,
+                &data.roots,
+                &g.style,
+                &theme,
+                &app.font_config,
+            );
             }
         }
     }
 
     // Школьная сетка 1:1
     if app.school_grid {
-        draw_school_grid(&painter, rect, &app.viewport, &theme);
+        draw_school_grid(&painter, rect, &app.viewport, &theme, &app.font_config);
     }
 
     // Легенда
-    draw_legend(&painter, rect, &app.graphs, &theme);
+    draw_legend(&painter, rect, &app.graphs, &theme, &app.font_config);
 
     // Точки пересечения
     draw_intersections(
@@ -137,10 +139,11 @@ pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         &app.viewport,
         &app.find_intersections(),
         &theme,
+        &app.font_config,
     );
 
     // Координаты мыши
-    draw_mouse_coords(ui, &painter, rect, &app.viewport, &theme);
+    draw_mouse_coords(ui, &painter, rect, &app.viewport, &theme, &app.font_config);
 }
 
 /// Отрисовка школьной сетки 1:1 (клетка = 1 единица).
@@ -149,6 +152,7 @@ fn draw_school_grid(
     rect: Rect,
     viewport: &crate::renderer::Viewport,
     theme: &crate::theme::Theme,
+    font_config: &FontConfig,
 ) {
     let grid_color = theme.grid_color;
     let stroke = Stroke::new(0.5_f32, grid_color);
@@ -183,7 +187,7 @@ fn draw_school_grid(
                     pos + Vec2::new(2.0, 12.0),
                     egui::Align2::LEFT_BOTTOM,
                     format!("{}", x),
-                    egui::FontId::monospace(9.0),
+                    font_config.small_font(),
                     text_color,
                 );
             }
@@ -197,7 +201,7 @@ fn draw_school_grid(
                     pos + Vec2::new(-8.0, 4.0),
                     egui::Align2::RIGHT_CENTER,
                     format!("{}", y),
-                    egui::FontId::monospace(9.0),
+                    font_config.small_font(),
                     text_color,
                 );
             }
@@ -211,6 +215,7 @@ fn draw_legend(
     rect: Rect,
     graphs: &[crate::app::GraphEntry],
     theme: &crate::theme::Theme,
+    font_config: &FontConfig,
 ) {
     let mut legend_y = rect.top() + 8.0;
     for g in graphs {
@@ -224,7 +229,7 @@ fn draw_legend(
                 pos + Vec2::new(22.0, -6.0),
                 egui::Align2::LEFT_TOP,
                 &g.style.label,
-                egui::FontId::proportional(12.0),
+                font_config.axis_font(),
                 theme.text_primary,
             );
             legend_y += 18.0;
@@ -239,6 +244,7 @@ fn draw_mouse_coords(
     rect: Rect,
     viewport: &crate::renderer::Viewport,
     theme: &crate::theme::Theme,
+    font_config: &FontConfig,
 ) {
     if let Some(hover_pos) = ui.input(|i| i.pointer.hover_pos()) {
         if hover_pos.x >= rect.left()
@@ -252,7 +258,7 @@ fn draw_mouse_coords(
                 pos2(rect.left() + 8.0, rect.bottom() - 24.0),
                 egui::Align2::LEFT_TOP,
                 label,
-                egui::FontId::monospace(12.0),
+                font_config.small_font(),
                 theme.text_primary,
             );
         }
@@ -266,6 +272,7 @@ fn draw_intersections(
     viewport: &crate::renderer::Viewport,
     intersections: &[crate::app::IntersectionPoint],
     theme: &crate::theme::Theme,
+    font_config: &FontConfig,
 ) {
     // Отрисовка всех найденных точек
     for point in intersections {
@@ -283,7 +290,7 @@ fn draw_intersections(
             screen_pos + egui::vec2(10.0, -8.0),
             egui::Align2::LEFT_TOP,
             label,
-            egui::FontId::monospace(10.0),
+            font_config.small_font(),
             theme.intersection_label_bg,
         );
     }

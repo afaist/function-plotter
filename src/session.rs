@@ -26,6 +26,7 @@ pub struct SessionData {
     pub adaptive: bool,
     pub adaptive_tolerance: f64,
     pub polar_mode: bool,
+    pub school_grid: bool,
     pub viewport_x_min: f64,
     pub viewport_x_max: f64,
     pub viewport_y_min: f64,
@@ -33,7 +34,7 @@ pub struct SessionData {
 }
 
 impl SessionData {
-    pub const VERSION: u32 = 3;
+    pub const VERSION: u32 = 4;
 
     /// Собрать DTO из состояния приложения.
     pub fn from_app(app: &PlotApp) -> Self {
@@ -58,6 +59,7 @@ impl SessionData {
             adaptive: app.adaptive,
             adaptive_tolerance: app.adaptive_tolerance,
             polar_mode: app.polar_mode,
+            school_grid: app.school_grid,
             viewport_x_min: app.viewport.x_min,
             viewport_x_max: app.viewport.x_max,
             viewport_y_min: app.viewport.y_min,
@@ -91,6 +93,7 @@ impl SessionData {
         app.adaptive = self.adaptive;
         app.adaptive_tolerance = self.adaptive_tolerance;
         app.polar_mode = self.polar_mode;
+        app.school_grid = self.school_grid;
         app.viewport.x_min = self.viewport_x_min;
         app.viewport.x_max = self.viewport_x_max;
         if !self.auto_y {
@@ -109,9 +112,14 @@ impl SessionData {
     /// Загрузить сессию из JSON-файла.
     pub fn load_from_file(path: &Path) -> Result<Self, String> {
         let content = fs::read_to_string(path).map_err(|e| format!("Чтение файла: {e}"))?;
-        let data: SessionData =
+        let mut data: SessionData =
             serde_json::from_str(&content).map_err(|e| format!("Десериализация: {e}"))?;
         if data.version != Self::VERSION {
+            // Миграция v3 -> v4: добавляем school_grid
+            if data.version == 3 {
+                data.version = Self::VERSION;
+                data.school_grid = false;
+            }
             return Err(format!(
                 "Версия файла {} не поддерживается (ожидается {})",
                 data.version,

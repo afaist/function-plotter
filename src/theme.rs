@@ -1,4 +1,4 @@
-use egui::Color32;
+use egui::{Color32, FontFamily, FontId, FontData};
 
 /// Тема оформления приложения.
 pub struct Theme {
@@ -321,5 +321,79 @@ impl ThemeKind {
             }
             _ => self.default_theme(),
         }
+    }
+}
+
+/// Конфигурация шрифтов приложения.
+#[derive(Clone, Debug)]
+pub struct FontConfig {
+    pub family: String,       // "monospace" | "proportional" | "custom"
+    pub size: f32,            // размер шрифта
+    pub custom_font_data: Option<FontData>, // кастомный шрифт из файла
+}
+
+impl Default for FontConfig {
+    fn default() -> Self {
+        Self {
+            family: "proportional".to_string(),
+            size: 12.0,
+            custom_font_data: None,
+        }
+    }
+}
+
+impl FontConfig {
+    /// Создать конфигурацию по умолчанию.
+    pub fn default_config() -> Self {
+        Self::default()
+    }
+
+    /// Resolve family string to FontFamily.
+    fn resolve_family(&self) -> FontFamily {
+        match self.family.as_str() {
+            "monospace" => FontFamily::Monospace,
+            "proportional" | _ => FontFamily::Proportional,
+        }
+    }
+
+    /// Основной шрифт для UI текста.
+    pub fn text_font(&self) -> FontId {
+        FontId::new(self.size, self.resolve_family())
+    }
+
+    /// Шрифт для формул (моноширинный).
+    pub fn formula_font(&self) -> FontId {
+        FontId::new(self.size, FontFamily::Monospace)
+    }
+
+    /// Шрифт для подписей осей и легенды.
+    pub fn axis_font(&self) -> FontId {
+        FontId::new(self.size * 0.95, FontFamily::Proportional)
+    }
+
+    /// Шрифт для мелких подписей (координаты мыши, особые точки).
+    pub fn small_font(&self) -> FontId {
+        FontId::new(self.size * 0.85, FontFamily::Monospace)
+    }
+
+    /// Шрифт для заголовков.
+    pub fn heading_font(&self) -> FontId {
+        FontId::new(self.size * 1.2, self.resolve_family())
+    }
+
+    /// Применить кастомный шрифт из файла.
+    pub fn load_custom_font(path: &std::path::Path) -> Result<Self, String> {
+        let bytes = std::fs::read(path)
+            .map_err(|e| format!("Не удалось прочитать шрифт: {e}"))?;
+        Ok(Self {
+            family: "custom".to_string(),
+            size: 12.0,
+            custom_font_data: Some(FontData::from_owned(bytes.into())),
+        })
+    }
+
+    /// Проверить, является ли шрифт кастомным.
+    pub fn is_custom(&self) -> bool {
+        self.family == "custom"
     }
 }

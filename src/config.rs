@@ -4,12 +4,14 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 /// Константа версии формата конфигурации.
-pub const CONFIG_VERSION: u32 = 3;
+pub const CONFIG_VERSION: u32 = 4;
 
 /// Дефолтные значения конфигурации.
 pub const DEFAULT_WINDOW_WIDTH: f64 = 1000.0;
 pub const DEFAULT_WINDOW_HEIGHT: f64 = 700.0;
 pub const DEFAULT_AUTO_LOAD: bool = false;
+pub const DEFAULT_FONT_FAMILY: &str = "proportional";
+pub const DEFAULT_FONT_SIZE: f32 = 12.0;
 
 /// Настройки приложения.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -20,6 +22,16 @@ pub struct AppConfig {
     pub auto_load_last_session: bool,
     pub last_session_path: Option<String>,
     pub theme: String,
+    // Настройки шрифта
+    pub font_family: String,     // "monospace" | "proportional" | "custom"
+    pub font_size: f32,          // 12.0 по умолчанию
+    pub custom_font_path: Option<String>, // путь к .ttf файлу
+    // Настройки отображения
+    pub school_grid: bool,
+    pub polar_mode: bool,
+    pub adaptive_density: bool,
+    pub n_points: usize,
+    pub auto_y: bool,
 }
 
 impl Default for AppConfig {
@@ -31,6 +43,14 @@ impl Default for AppConfig {
             auto_load_last_session: DEFAULT_AUTO_LOAD,
             last_session_path: None,
             theme: "dark".to_string(),
+            font_family: DEFAULT_FONT_FAMILY.to_string(),
+            font_size: DEFAULT_FONT_SIZE,
+            custom_font_path: None,
+            school_grid: false,
+            polar_mode: false,
+            adaptive_density: false,
+            n_points: 500,
+            auto_y: true,
         }
     }
 }
@@ -65,6 +85,13 @@ impl AppConfig {
                         // Миграция v2 -> v3: добавляем theme по умолчанию
                         if config.theme.is_empty() {
                             config.theme = "dark".to_string();
+                        }
+                        // Миграция v3 -> v4: добавляем новые поля по умолчанию
+                        if config.font_family.is_empty() {
+                            config.font_family = DEFAULT_FONT_FAMILY.to_string();
+                        }
+                        if config.font_size <= 0.0 {
+                            config.font_size = DEFAULT_FONT_SIZE;
                         }
                         // Сохраняем обновлённую версию
                         let _ = config.save();
@@ -112,6 +139,12 @@ impl AppConfig {
                         config.version = CONFIG_VERSION;
                         if config.theme.is_empty() {
                             config.theme = "dark".to_string();
+                        }
+                        if config.font_family.is_empty() {
+                            config.font_family = DEFAULT_FONT_FAMILY.to_string();
+                        }
+                        if config.font_size <= 0.0 {
+                            config.font_size = DEFAULT_FONT_SIZE;
                         }
                     }
                     config

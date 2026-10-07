@@ -9,7 +9,7 @@ use crate::export::save_rect_to_png;
 use crate::parser::{self, ParsedFormula};
 use crate::renderer::{PlotStyle, Viewport};
 use crate::session;
-use crate::theme::ThemeKind;
+use crate::theme::{FontConfig, ThemeKind};
 
 /// Сообщение в статус-баре с автоматическим затуханием.
 #[derive(Clone, Debug)]
@@ -457,6 +457,8 @@ pub struct PlotApp {
     pub school_grid: bool,
     /// Текущая тема оформления
     pub current_theme: ThemeKind,
+    /// Настройки шрифтов
+    pub font_config: FontConfig,
 }
 
 impl Default for PlotApp {
@@ -499,6 +501,7 @@ impl Default for PlotApp {
             save_path: None,
             school_grid: false,
             current_theme: ThemeKind::Dark,
+            font_config: FontConfig::default(),
         };
         app.graphs.push(GraphEntry::new(
             "f1",
@@ -652,12 +655,20 @@ impl PlotApp {
                                         temp_dir.join(format!("config{}.json", suffix));
 
                                     let config = AppConfig {
-                                        version: 3,
+                                        version: 4,
                                         window_width: width,
                                         window_height: height,
                                         auto_load_last_session: false,
                                         last_session_path: None,
                                         theme: "dark".to_string(),
+                                        font_family: "proportional".to_string(),
+                                        font_size: 12.0,
+                                        custom_font_path: None,
+                                        school_grid: false,
+                                        polar_mode: false,
+                                        adaptive_density: false,
+                                        n_points: 500,
+                                        auto_y: true,
                                     };
                                     if let Err(e) = config.save_to(&config_path) {
                                         eprintln!("Warning: Could not save config: {e}");
@@ -683,12 +694,20 @@ impl PlotApp {
 
                                     // Создаём config с нужным размером
                                     let config = AppConfig {
-                                        version: 3,
+                                        version: 4,
                                         window_width: 1200.0,
                                         window_height: 800.0,
                                         auto_load_last_session: false,
                                         last_session_path: None,
                                         theme: "dark".to_string(),
+                                        font_family: "proportional".to_string(),
+                                        font_size: 12.0,
+                                        custom_font_path: None,
+                                        school_grid: false,
+                                        polar_mode: false,
+                                        adaptive_density: false,
+                                        n_points: 500,
+                                        auto_y: true,
                                     };
                                     config.save_to(&config_path).ok();
 
@@ -1001,6 +1020,13 @@ impl PlotApp {
         let new_config = config::AppConfig {
             window_width: self.window_size[0] as f64,
             window_height: self.window_size[1] as f64,
+            font_family: self.font_config.family.clone(),
+            font_size: self.font_config.size,
+            school_grid: self.school_grid,
+            polar_mode: self.polar_mode,
+            adaptive_density: self.adaptive,
+            n_points: self.n_points,
+            auto_y: self.auto_y,
             ..config
         };
         let _ = new_config.save();
@@ -1010,6 +1036,15 @@ impl PlotApp {
     pub fn restore_window_size(&mut self) {
         let config = config::AppConfig::load();
         self.window_size = [config.window_width as f32, config.window_height as f32];
+        // Восстанавливаем настройки шрифта
+        self.font_config.family = config.font_family.clone();
+        self.font_config.size = config.font_size;
+        // Восстанавливаем другие настройки
+        self.school_grid = config.school_grid;
+        self.polar_mode = config.polar_mode;
+        self.adaptive = config.adaptive_density;
+        self.n_points = config.n_points;
+        self.auto_y = config.auto_y;
     }
 
     /// Сохранить текущее состояние graphs в undo_stack.
@@ -1466,7 +1501,11 @@ impl eframe::App for PlotApp {
             .resizable(true)
             .default_size(260.0)
             .show(ui, |ui| {
-                crate::ui::controls::show_controls_panel(self, &ctx, ui);
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        crate::ui::controls::show_controls_panel(self, &ctx, ui);
+                    });
             });
 
         // --- Центральная область: холст для графиков ---

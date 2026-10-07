@@ -17,6 +17,28 @@ pub use export::save_dialog;
 
 fn main() -> eframe::Result {
     let config = config::AppConfig::load();
+    
+    // Настраиваем шрифты до создания eframe
+    let mut font_config = theme::FontConfig {
+        family: config.font_family.clone(),
+        size: config.font_size,
+        custom_font_data: None,
+    };
+    
+    // Загружаем кастомный шрифт если указан
+    if let Some(ref path_str) = config.custom_font_path {
+        let path = std::path::Path::new(path_str);
+        if path.exists() {
+            if let Ok(bytes) = std::fs::read(path) {
+                font_config.custom_font_data = Some(egui::FontData::from_owned(bytes.into()));
+            } else {
+                eprintln!("Warning: Не удалось прочитать кастомный шрифт: {path_str}");
+            }
+        } else {
+            eprintln!("Warning: Кастомный шрифт не найден: {path_str}. Используются настройки по умолчанию.");
+        }
+    }
+    
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size((config.window_width as f32, config.window_height as f32))
@@ -27,7 +49,20 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "Function Plotter",
         options,
-        Box::new(|_cc| {
+        Box::new(|cc| {
+            // Применяем кастомный шрифт если есть
+            if let Some(font_data) = &font_config.custom_font_data {
+                let mut font_defs = egui::FontDefinitions::default();
+                font_defs.font_data.insert(
+                    "custom".to_string(),
+                    std::sync::Arc::new(font_data.clone()),
+                );
+                font_defs.families.entry(egui::FontFamily::Proportional)
+                    .or_insert_with(Vec::new)
+                    .push("custom".to_string());
+                cc.egui_ctx.set_fonts(font_defs);
+            }
+            
             let mut app = app::PlotApp::default();
 
             // Загружаем конфигурацию и инициализируем last_session_path
@@ -42,6 +77,9 @@ fn main() -> eframe::Result {
 
             // Восстанавливаем размер окна из config
             app.restore_window_size();
+
+            // Инициализируем FontConfig из конфига
+            app.font_config = font_config;
 
             // Проверяем auto-load
             if config.auto_load_last_session {

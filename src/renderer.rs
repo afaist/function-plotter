@@ -1,7 +1,7 @@
 use egui::{Color32, Painter, Pos2, Rect, Stroke, Vec2};
 
 use crate::parser::FormulaType;
-use crate::theme::Theme;
+use crate::theme::{FontConfig, Theme};
 
 /// Настройки отображения для одного графика.
 #[derive(Clone)]
@@ -134,6 +134,7 @@ pub fn draw_special_points(
     roots: &[f64],
     _style: &PlotStyle,
     theme: &Theme,
+    font_config: &FontConfig,
 ) {
     // Цвет для вершины — из темы
     let vertex_color = theme.vertex_color;
@@ -156,7 +157,7 @@ pub fn draw_special_points(
                     pos + Vec2::new(8.0, -8.0),
                     egui::Align2::LEFT_TOP,
                     text,
-                    egui::FontId::monospace(10.0),
+                    font_config.small_font(),
                     vertex_color,
                 );
             }
@@ -178,7 +179,7 @@ pub fn draw_special_points(
                     pos + Vec2::new(8.0, 8.0),
                     egui::Align2::LEFT_TOP,
                     text,
-                    egui::FontId::monospace(10.0),
+                    font_config.small_font(),
                     root_color,
                 );
             }
@@ -344,7 +345,7 @@ fn nice_step(step: f64) -> f64 {
 }
 
 /// Отрисовка осей координат и сетки.
-pub fn draw_axes(painter: &Painter, rect: Rect, viewport: &Viewport, theme: &Theme) {
+pub fn draw_axes(painter: &Painter, rect: Rect, viewport: &Viewport, theme: &Theme, font_config: &FontConfig) {
     let axis_color = theme.axis_color;
     let grid_color = theme.grid_color;
     let text_color = theme.text_primary;
@@ -399,7 +400,7 @@ pub fn draw_axes(painter: &Painter, rect: Rect, viewport: &Viewport, theme: &The
     }
 
     // Подписи делений: адаптивная точность
-    let font = egui::FontId::proportional(11.0);
+    let font = font_config.axis_font();
 
     // Метки по X
     for i in 0..=n_grid_x {
@@ -453,7 +454,7 @@ pub fn format_coord(val: f64, step: f64) -> String {
 }
 
 /// Отрисовка полярной сетки (круги + лучи).
-pub fn draw_polar_grid(painter: &Painter, rect: Rect, viewport: &Viewport, theme: &Theme) {
+pub fn draw_polar_grid(painter: &Painter, rect: Rect, viewport: &Viewport, theme: &Theme, font_config: &FontConfig) {
     let grid_color = theme.grid_color;
     let axis_color = theme.axis_color;
     let text_color = theme.text_primary;
@@ -508,7 +509,7 @@ pub fn draw_polar_grid(painter: &Painter, rect: Rect, viewport: &Viewport, theme
     }
 
     // Подписи радиусов
-    let font = egui::FontId::proportional(10.0);
+    let font = font_config.axis_font();
     for i in 1..=num_circles {
         let radius = max_radius * i as f64 / num_circles as f64;
         let pos = viewport.math_to_screen(radius, 0.0, rect);

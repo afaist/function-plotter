@@ -10,7 +10,7 @@ use crate::export;
 use crate::export::save_dialog;
 use crate::parser::ParsedFormula;
 use crate::renderer::Viewport;
-use crate::theme::Theme;
+use crate::theme::{FontConfig, Theme};
 
 /// Отрисовка одной записи графика в левой панели.
 /// Возвращает true, если были изменения.
@@ -48,15 +48,19 @@ fn render_graph_entry(
 
         // Кнопка видимости — «глаз»
         let eye_icon = if *visible { "👁" } else { "🚫" };
-        if ui.button(eye_icon).clicked() {
+        let eye_resp = ui.button(eye_icon);
+        if eye_resp.clicked() {
             *visible = !*visible;
             changed = true;
         }
+        eye_resp.clone().on_hover_text("Показать/скрыть график");
 
-        if ui.button("✕").clicked() {
+        let del_resp = ui.button("✕");
+        if del_resp.clicked() {
             *need_remove = Some(i);
             changed = true;
         }
+        del_resp.on_hover_text("Удалить график");
     });
 
     // Индикатор типа формулы
@@ -112,7 +116,9 @@ fn render_graph_entry(
     if !has_raw_data {
         ui.horizontal(|ui| {
             // При включении слайдеров — извлекаем коэффициенты из формулы
-            if ui.checkbox(use_sliders, "Слайдеры").changed() && *use_sliders {
+            let resp = ui.checkbox(use_sliders, "Слайдеры");
+            resp.clone().on_hover_text("Быстрая подстановка коэффициентов a, b, c");
+            if resp.changed() && *use_sliders {
                 *need_auto_extract = true;
                 changed = true;
             }
@@ -122,6 +128,7 @@ fn render_graph_entry(
                     *need_auto_extract = true;
                     changed = true;
                 }
+                ui.button("Авто").on_hover_text("Быстрая подстановка коэффициентов a, b, c");
             }
         });
     }
@@ -206,9 +213,11 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     let mut need_save_snapshot = false;
 
     // Кнопка шаблонов
-    if ui.button("📋 Шаблоны").clicked() {
+    let templates_resp = ui.button("📋 Шаблоны");
+    if templates_resp.clicked() {
         app.show_templates_window = true;
     }
+    templates_resp.clone().on_hover_text("Выберите готовую функцию из шаблонов");
 
     // Окно шаблонов
     egui::Window::new("Шаблоны функций")
@@ -411,15 +420,17 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     ui.add_space(4.0);
 
     // Школьная сетка
-    if ui
-        .checkbox(&mut app.school_grid, "Школьная сетка 1:1")
-        .changed()
-    {
+    let school_resp = ui
+        .checkbox(&mut app.school_grid, "Школьная сетка 1:1");
+    school_resp.clone().on_hover_text("Отобразить сетку 1:1 для школьных задач");
+    if school_resp.changed() {
         app.has_unsaved_changes = true;
     }
 
     // Добавить график
-    if ui.button("+ Добавить график").clicked() {
+    let add_resp = ui.button("+ Добавить график");
+    add_resp.clone().on_hover_text("Добавить новый график функций");
+    if add_resp.clicked() {
         let palette = [
             Color32::from_rgb(150, 255, 150),
             Color32::from_rgb(255, 255, 100),
@@ -453,7 +464,9 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
 
     ui.horizontal(|ui| {
         ui.label("x min:");
-        if ui.add(egui::DragValue::new(&mut x_min)).changed() {
+        let resp = ui.add(egui::DragValue::new(&mut x_min));
+        resp.clone().on_hover_text("Границы отображения по оси X");
+        if resp.changed() {
             app.x_min = x_min as f64;
             app.has_unsaved_changes = true;
             app.mark_all_dirty();
@@ -462,7 +475,9 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     });
     ui.horizontal(|ui| {
         ui.label("x max:");
-        if ui.add(egui::DragValue::new(&mut x_max)).changed() {
+        let resp = ui.add(egui::DragValue::new(&mut x_max));
+        resp.clone().on_hover_text("Границы отображения по оси X");
+        if resp.changed() {
             app.x_max = x_max as f64;
             app.has_unsaved_changes = true;
             app.mark_all_dirty();
@@ -471,10 +486,9 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     });
     ui.horizontal(|ui| {
         ui.label("точки:");
-        if ui
-            .add(egui::DragValue::new(&mut n).range(10..=10000))
-            .changed()
-        {
+        let resp = ui.add(egui::DragValue::new(&mut n).range(10..=10000));
+        resp.clone().on_hover_text("Количество точек для отрисовки (больше = плавнее)");
+        if resp.changed() {
             app.n_points = n as usize;
             app.has_unsaved_changes = true;
             app.mark_all_dirty();
@@ -484,10 +498,10 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
 
     // Полярные координаты
     ui.add_space(4.0);
-    if ui
-        .checkbox(&mut app.polar_mode, "Полярные координаты")
-        .changed()
-    {
+    let polar_resp = ui
+        .checkbox(&mut app.polar_mode, "Полярные координаты");
+    polar_resp.clone().on_hover_text("Переключить в полярную систему координат");
+    if polar_resp.changed() {
         app.has_unsaved_changes = true;
         need_save_snapshot = true;
         app.mark_all_dirty();
@@ -497,17 +511,19 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     ui.add_space(8.0);
     ui.separator();
     ui.heading("Диапазон Y");
-    if ui.checkbox(&mut app.auto_y, "Авто-масштаб Y").changed() {
+    let auto_y_resp = ui.checkbox(&mut app.auto_y, "Авто-масштаб Y");
+    auto_y_resp.clone().on_hover_text("Автоматически подбирать масштаб по Y");
+    if auto_y_resp.changed() {
         app.has_unsaved_changes = true;
         need_save_snapshot = true;
     }
 
     // Адаптивный алгоритм
     ui.add_space(4.0);
-    if ui
-        .checkbox(&mut app.adaptive, "Адаптивная плотность")
-        .changed()
-    {
+    let adaptive_resp = ui
+        .checkbox(&mut app.adaptive, "Адаптивная плотность");
+    adaptive_resp.clone().on_hover_text("Адаптивно увеличивать количество точек в зонах быстрого изменения");
+    if adaptive_resp.changed() {
         app.has_unsaved_changes = true;
         need_save_snapshot = true;
     }
@@ -549,7 +565,9 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     // Кнопки управления масштабом
     ui.add_space(4.0);
     ui.horizontal(|ui| {
-        if ui.button("⟲ Сбросить масштаб").clicked() {
+        let reset_resp = ui.button("⟲ Сбросить масштаб");
+        reset_resp.clone().on_hover_text("Вернуть масштаб и позицию по умолчанию");
+        if reset_resp.clicked() {
             app.viewport = Viewport::new();
             app.x_min = app.viewport.x_min;
             app.x_max = app.viewport.x_max;
@@ -560,14 +578,14 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         }
     });
     ui.horizontal(|ui| {
-        if ui
+        let auto_y_btn = ui
             .button(if app.auto_y {
                 "⟳ Авто Y"
             } else {
                 "⟳ Авто Y (выкл)"
-            })
-            .clicked()
-        {
+            });
+        auto_y_btn.clone().on_hover_text("Переключить на автоматический масштаб по Y");
+        if auto_y_btn.clicked() {
             app.auto_y = !app.auto_y;
             app.has_unsaved_changes = true;
             need_save_snapshot = true;
@@ -612,18 +630,103 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
             }
         }
     });
+    ui.label("Тема").on_hover_text("Выберите цветовую тему оформления");
+
+    // --- Секция шрифтов ---
+    ui.add_space(8.0);
+    ui.separator();
+    ui.heading("Шрифт");
+
+    // Выбор семейства шрифта
+    let mut font_family_selected = app.font_config.family.clone();
+    ui.horizontal(|ui| {
+        ui.label("Семейство:");
+        egui::ComboBox::from_id_salt("font_family_combo")
+            .selected_text(font_family_selected.clone())
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut font_family_selected, "proportional".to_string(), "Proportional");
+                ui.selectable_value(&mut font_family_selected, "monospace".to_string(), "Monospace");
+                if app.font_config.is_custom() {
+                    ui.selectable_value(&mut font_family_selected, "custom".to_string(), "Custom (loaded)");
+                }
+            });
+    });
+    ui.label("Семейство").on_hover_text("Proportional — пропорциональный, Monospace — моноширинный");
+    
+    if font_family_selected != app.font_config.family {
+        app.font_config.family = font_family_selected;
+        app.has_unsaved_changes = true;
+    }
+
+    // Размер шрифта
+    let mut font_size = app.font_config.size;
+    ui.horizontal(|ui| {
+        ui.label("Размер:");
+        let resp = ui.add(egui::DragValue::new(&mut font_size).range(8.0..=24.0).speed(0.5));
+        resp.on_hover_text("Размер шрифта в пунктах (8–24)");
+    });
+    if (font_size - app.font_config.size).abs() > 0.01 {
+        app.font_config.size = font_size;
+        app.has_unsaved_changes = true;
+        ui.ctx().request_repaint();
+    }
+
+    // Кнопка загрузки кастомного шрифта
+    ui.horizontal(|ui| {
+        let load_font_resp = ui.button("📂 Загрузить шрифт");
+        load_font_resp.clone().on_hover_text("Выбрать .ttf файл для использования в качестве основного шрифта");
+        if load_font_resp.clicked() {
+            let path = rfd::FileDialog::new()
+                .add_filter("TrueType Font", &["ttf"])
+                .add_filter("All Files", &["*"])
+                .pick_file();
+            if let Some(ref p) = path {
+                match FontConfig::load_custom_font(p) {
+                    Ok(custom_font) => {
+                        app.font_config = custom_font;
+                        app.has_unsaved_changes = true;
+                        app.status_msg = Some(StatusMessage::Info(format!(
+                            "Шрифт загружен: {}",
+                            p.file_name().unwrap_or_default().to_string_lossy()
+                        )));
+                        app.status_time = Some(Instant::now());
+                    }
+                    Err(e) => {
+                        app.status_msg = Some(StatusMessage::Error(format!(
+                            "Ошибка загрузки шрифта: {e}"
+                        )));
+                        app.status_time = Some(Instant::now());
+                    }
+                }
+            }
+        }
+        
+        let reset_font_resp = ui.button("↺ Сбросить");
+        reset_font_resp.clone().on_hover_text("Вернуть настройки шрифта к значениям по умолчанию");
+        if reset_font_resp.clicked() {
+            app.font_config = FontConfig::default();
+            app.has_unsaved_changes = true;
+            ui.ctx().request_repaint();
+        }
+    });
 
     // Кнопки помощи
     ui.add_space(8.0);
     ui.separator();
     ui.horizontal(|ui| {
-        if ui.button("❓ Помощь").clicked() {
+        let help_resp = ui.button("❓ Помощь");
+        help_resp.clone().on_hover_text("Открыть справку с описанием команд");
+        if help_resp.clicked() {
             app.show_help_window = true;
         }
-        if ui.button("ℹ️ О программе").clicked() {
+        let about_resp = ui.button("ℹ️ О программе");
+        about_resp.clone().on_hover_text("Показать информацию о программе");
+        if about_resp.clicked() {
             app.show_about_window = true;
         }
-        if ui.button("📊 Таблица").clicked() {
+        let values_resp = ui.button("📊 Таблица");
+        values_resp.clone().on_hover_text("Показать таблицу значений для выбранного графика");
+        if values_resp.clicked() {
             app.show_values_table = true;
             app.values_table_graph_index = app.selected_graph;
         }
@@ -637,7 +740,9 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
 /// Панель экспорта/импорта (CSV, PNG).
 fn show_export_ui(app: &mut PlotApp, ctx: &Context, ui: &mut Ui, need_recompute: &mut bool) {
     // Импорт CSV
-    if ui.button("📥 Импорт CSV").clicked() {
+    let import_resp = ui.button("📥 Импорт CSV");
+    import_resp.clone().on_hover_text("Загрузить данные из CSV файла для отображения точек");
+    if import_resp.clicked() {
         let path = export::open_csv_dialog();
         if let Some(ref p) = path {
             match export::load_csv(p) {
@@ -829,7 +934,9 @@ pub fn render_about_content(ui: &mut Ui, _current_theme: &crate::theme::ThemeKin
 
 /// Панель сессий (сохранить/загрузить).
 fn show_session_ui(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui) {
-    if ui.button("Сохранить сессию").clicked() {
+    let save_resp = ui.button("Сохранить сессию");
+    save_resp.clone().on_hover_text("Сохранить все графики и настройки в файл");
+    if save_resp.clicked() {
         let path = rfd::FileDialog::new()
             .set_file_name("plot_session.json")
             .add_filter("JSON", &["json"])
@@ -859,7 +966,9 @@ fn show_session_ui(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui) {
         }
     }
 
-    if ui.button("Загрузить сессию").clicked() {
+    let load_resp = ui.button("Загрузить сессию");
+    load_resp.clone().on_hover_text("Загрузить сохранённую сессию");
+    if load_resp.clicked() {
         let path = rfd::FileDialog::new()
             .add_filter("JSON", &["json"])
             .pick_file();
