@@ -10,6 +10,7 @@ use crate::export;
 use crate::export::save_dialog;
 use crate::parser::ParsedFormula;
 use crate::renderer::Viewport;
+use crate::svg_renderer;
 use crate::theme::{FontConfig, Theme};
 
 /// Отрисовка одной записи графика в левой панели.
@@ -849,6 +850,38 @@ fn show_export_ui(app: &mut PlotApp, ctx: &Context, ui: &mut Ui, need_recompute:
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData {
                 data: None,
             }));
+        }
+    }
+
+    ui.separator();
+
+    let svg_btn = ui.button("Сохранить SVG");
+    svg_btn.clone().on_hover_text("Экспорт всех видимых графиков в векторный SVG");
+    if svg_btn.clicked() {
+        let path = rfd::FileDialog::new()
+            .set_file_name("plot.svg")
+            .add_filter("SVG", &["svg"])
+            .save_file();
+
+        if let Some(ref p) = path {
+            let theme = app.current_theme.resolve(ui.ctx());
+            match svg_renderer::export_svg(
+                &app.graphs,
+                &app.viewport,
+                &theme,
+                &app.font_config,
+                p,
+            ) {
+                Ok(()) => {
+                    app.status_msg =
+                        Some(StatusMessage::Info(format!("SVG сохранён: {}", p.display())));
+                    app.status_time = Some(Instant::now());
+                }
+                Err(e) => {
+                    app.status_msg = Some(StatusMessage::Error(format!("Ошибка SVG: {e}")));
+                    app.status_time = Some(Instant::now());
+                }
+            }
         }
     }
 }

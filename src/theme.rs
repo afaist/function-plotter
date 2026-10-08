@@ -397,3 +397,26 @@ impl FontConfig {
         self.family == "custom"
     }
 }
+
+/// HEX-расширения для Theme.
+impl Theme {
+    /// HEX-строка для canvas_bg.
+    pub fn canvas_color_hex(&self) -> String {
+        format!("{:02x}{:02x}{:02x}", self.canvas_bg.r(), self.canvas_bg.g(), self.canvas_bg.b())
+    }
+
+    /// HEX-строка для grid_color.
+    pub fn grid_color_hex(&self) -> String {
+        format!("{:02x}{:02x}{:02x}", self.grid_color.r(), self.grid_color.g(), self.grid_color.b())
+    }
+
+    /// HEX-строка для axis_color.
+    pub fn axis_color_hex(&self) -> String {
+        format!("{:02x}{:02x}{:02x}", self.axis_color.r(), self.axis_color.g(), self.axis_color.b())
+    }
+
+    /// HEX-строка для text_primary.
+    pub fn text_color_hex(&self) -> String {
+        format!("{:02x}{:02x}{:02x}", self.text_primary.r(), self.text_primary.g(), self.text_primary.b())
+    }
+}

@@ -5,6 +5,7 @@ mod export;
 mod parser;
 mod renderer;
 mod session;
+mod svg_renderer;
 mod templates;
 pub mod theme;
 mod ui;
