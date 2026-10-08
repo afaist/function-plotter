@@ -2,6 +2,10 @@
 name = "function-plotter"
 version = "0.4.0"
 edition = "2024"
+description = "Программа для построения графиков функций"
+license = "MIT"
+repository = "https://github.com/afaist/function-plotter"
+authors = ["Alexander Zinovev",]
 
 [dependencies]
 eframe = "0.36"
