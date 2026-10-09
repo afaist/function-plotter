@@ -838,7 +838,9 @@ fn show_export_ui(app: &mut PlotApp, ctx: &Context, ui: &mut Ui, need_recompute:
         }
     }
 
-    if ui.button("Сохранить PNG").clicked() {
+    let png_btn = ui.button("Сохранить PNG");
+    png_btn.clone().on_hover_text("Сохранить скриншот всего окна в PNG");
+    if png_btn.clicked() {
         let path = rfd::FileDialog::new()
             .set_file_name("plot.png")
             .add_filter("PNG", &["png"])
@@ -852,7 +854,6 @@ fn show_export_ui(app: &mut PlotApp, ctx: &Context, ui: &mut Ui, need_recompute:
             }));
         }
     }
-    ui.button("Сохранить PNG").on_hover_text("Сохранить скриншот всего окна в PNG");
 
     ui.separator();
 
