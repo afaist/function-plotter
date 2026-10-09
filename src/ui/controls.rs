@@ -38,6 +38,7 @@ fn render_graph_entry(
     need_reparse: &mut bool,
     is_editing: &mut bool,
     theme: &Theme,
+    group: &mut usize,
 ) -> bool {
     let mut changed = false;
 
@@ -75,6 +76,27 @@ fn render_graph_entry(
             );
         });
     }
+
+    // Выбор группы
+    ui.horizontal(|ui| {
+        ui.label("Группа:");
+        let mut group_str = format!("{}", group);
+        egui::ComboBox::from_id_salt(("group", i))
+            .selected_text(format!("Группа {}", group))
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut group_str, "0".to_string(), "Без группы");
+                ui.selectable_value(&mut group_str, "1".to_string(), "Группа 1");
+                ui.selectable_value(&mut group_str, "2".to_string(), "Группа 2");
+                ui.selectable_value(&mut group_str, "3".to_string(), "Группа 3");
+            });
+        if let Ok(new_group) = group_str.parse() {
+            if new_group != *group {
+                *group = new_group;
+                changed = true;
+            }
+        }
+    });
+    ui.label("Группа").on_hover_text("Назначьте график группе для управления видимостью всей группы");
 
     // Строка формулы — клик выделяет график
     // formula — это &mut String, egui обновляет его напрямую
@@ -215,10 +237,10 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
 
     // Кнопка шаблонов
     let templates_resp = ui.button("📋 Шаблоны");
+    templates_resp.clone().on_hover_text("Выберите готовую функцию из шаблонов");
     if templates_resp.clicked() {
         app.show_templates_window = true;
     }
-    templates_resp.clone().on_hover_text("Выберите готовую функцию из шаблонов");
 
     // Окно шаблонов
     egui::Window::new("Шаблоны функций")
@@ -287,6 +309,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         let mut is_editing = app.graphs[i].is_editing;
         // Локальная копия формулы для egui
         let mut formula = app.graphs[i].formula_text.clone();
+        let mut group = app.graphs[i].group;
 
         let mut changed = false;
         ui.push_id(i, |ui| {
@@ -319,7 +342,10 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                         &mut need_reparse,
                         &mut is_editing,
                         &theme,
+                        &mut group,
                     );
+                    // Копируем актуальные значения обратно
+                    app.graphs[i].group = group;
                 });
             } else {
                 changed = render_graph_entry(
@@ -344,7 +370,10 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
                     &mut need_reparse,
                     &mut is_editing,
                     &theme,
+                    &mut group,
                 );
+                // Копируем актуальные значения обратно
+                app.graphs[i].group = group;
             }
         });
 
@@ -416,9 +445,59 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         app.save_snapshot();
     }
 
+    // Кнопки управления группами
+    ui.add_space(8.0);
+    ui.separator();
+    ui.horizontal(|ui| {
+        ui.label("Группы:");
+        for g in 1..=3 {
+            // Проверяем есть ли графики в этой группе
+            let has_graphs_in_group = app.graphs.iter().any(|graph| graph.group == g);
+            if has_graphs_in_group {
+                // Проверяем видимость всех графиков в группе
+                let all_visible = app.graphs.iter()
+                    .filter(|graph| graph.group == g)
+                    .all(|graph| graph.style.visible);
+                
+                let btn_text = if all_visible { "👁" } else { "🚫" };
+                let btn = ui.button(btn_text);
+                btn.clone().on_hover_text(&format!("Показать/скрыть все графики группы {}", g));
+                if btn.clicked() {
+                    for graph in app.graphs.iter_mut() {
+                        if graph.group == g {
+                            graph.style.visible = !graph.style.visible;
+                        }
+                    }
+                    any_changed = true;
+                }
+            }
+        }
+    });
+    ui.label("Группы").on_hover_text("Нажмите на 👁/🚫 чтобы показать/скрыть все графики группы");
+
     ui.add_space(8.0);
     ui.separator();
     ui.add_space(4.0);
+
+    // Кнопка настроек
+    let settings_resp = ui.button("⚙️ Настройки");
+    settings_resp.clone().on_hover_text("Открыть окно настроек приложения");
+    if settings_resp.clicked() {
+        app.show_settings_window = true;
+    }
+
+    // Режим зума выделением
+    let zoom_resp = ui
+        .checkbox(&mut app.zoom_mode, "Зум выделением");
+    zoom_resp.clone().on_hover_text("Включите режим и выделите участок мышью на холсте для зума");
+    if zoom_resp.changed() {
+        app.has_unsaved_changes = true;
+        if !app.zoom_mode {
+            // Сброс выделения при выходе из режима
+            app.selection_start = None;
+            app.selection_end = None;
+        }
+    }
 
     // Школьная сетка
     let school_resp = ui
@@ -1093,6 +1172,184 @@ fn show_session_ui(app: &mut PlotApp, _ctx: &Context, ui: &mut Ui) {
             )));
             app.status_time = Some(Instant::now());
         }
+    }
+}
+
+/// Отрисовка окна настроек.
+pub fn show_settings_window(app: &mut PlotApp, ctx: &Context) {
+    // Извлекаем значения для сравнения
+    let current_theme = app.current_theme.to_string();
+    let current_font_family = app.font_config.family.clone();
+    let current_font_size = app.font_config.size;
+    let current_x_min = app.x_min;
+    let current_x_max = app.x_max;
+
+    // Собираем изменения для применения после закрытия окна
+    let mut pending_theme: Option<crate::theme::ThemeKind> = None;
+    let mut pending_font_family = current_font_family.clone();
+    let mut pending_font_size = current_font_size;
+    let mut pending_x_min = current_x_min;
+    let mut pending_x_max = current_x_max;
+    let mut pending_mark_dirty = false;
+
+    egui::Window::new("⚙️ Настройки")
+        .resizable(true)
+        .open(&mut app.show_settings_window)
+        .show(ctx, |ui| {
+            ui.heading("Тема");
+            let mut selected_theme = current_theme.clone();
+            egui::ComboBox::from_id_salt("settings_theme")
+                .selected_text(selected_theme.clone())
+                .show_ui(ui, |ui| {
+                    for theme in crate::theme::ThemeKind::all() {
+                        ui.selectable_value(&mut selected_theme, theme.to_string(), theme.to_string());
+                    }
+                });
+            if selected_theme != current_theme {
+                if let Some(theme_kind) = crate::theme::ThemeKind::from_string(&selected_theme) {
+                    pending_theme = Some(theme_kind);
+                }
+            }
+            ui.separator();
+
+            ui.heading("Шрифт");
+            
+            // Семейство шрифтов
+            let mut font_family = current_font_family.clone();
+            ui.horizontal(|ui| {
+                ui.label("Семейство:");
+                egui::ComboBox::from_id_salt("settings_font_family")
+                    .selected_text(font_family.clone())
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut font_family, "proportional".to_string(), "Proportional");
+                        ui.selectable_value(&mut font_family, "monospace".to_string(), "Monospace");
+                        if app.font_config.is_custom() {
+                            ui.selectable_value(&mut font_family, "custom".to_string(), "Custom (loaded)");
+                        }
+                    });
+            });
+            if font_family != current_font_family {
+                pending_font_family = font_family;
+                app.has_unsaved_changes = true;
+            }
+
+            // Размер шрифта
+            let mut font_size = current_font_size;
+            ui.horizontal(|ui| {
+                ui.label("Размер:");
+                ui.add(egui::DragValue::new(&mut font_size).range(8.0..=24.0).speed(0.5));
+            });
+            if (font_size - current_font_size).abs() > 0.01 {
+                pending_font_size = font_size;
+                app.has_unsaved_changes = true;
+                ui.ctx().request_repaint();
+            }
+
+            // Загрузка кастомного шрифта
+            ui.horizontal(|ui| {
+                if ui.button("📂 Загрузить шрифт").clicked() {
+                    let path = rfd::FileDialog::new()
+                        .add_filter("TrueType Font", &["ttf"])
+                        .add_filter("All Files", &["*"])
+                        .pick_file();
+                    if let Some(ref p) = path {
+                        match FontConfig::load_custom_font(p) {
+                            Ok(custom_font) => {
+                                app.font_config = custom_font;
+                                app.has_unsaved_changes = true;
+                                app.status_msg = Some(StatusMessage::Info(format!(
+                                    "Шрифт загружен: {}",
+                                    p.file_name().unwrap_or_default().to_string_lossy()
+                                )));
+                                app.status_time = Some(Instant::now());
+                            }
+                            Err(e) => {
+                                app.status_msg = Some(StatusMessage::Error(format!(
+                                    "Ошибка загрузки шрифта: {e}"
+                                )));
+                                app.status_time = Some(Instant::now());
+                            }
+                        }
+                    }
+                }
+                ui.button("📂 Загрузить шрифт").on_hover_text("Выбрать .ttf файл для использования в качестве основного шрифта");
+                
+                if ui.button("↺ Сбросить").clicked() {
+                    app.font_config = FontConfig::default();
+                    app.has_unsaved_changes = true;
+                    ui.ctx().request_repaint();
+                }
+                ui.button("↺ Сбросить").on_hover_text("Вернуть настройки шрифта к значениям по умолчанию");
+            });
+            ui.separator();
+
+            ui.heading("Отображение");
+            
+            // Школьная сетка
+            if ui.checkbox(&mut app.school_grid, "Школьная сетка 1:1").changed() {
+                app.has_unsaved_changes = true;
+            }
+
+            // Полярные координаты
+            if ui.checkbox(&mut app.polar_mode, "Полярные координаты").changed() {
+                app.has_unsaved_changes = true;
+            }
+
+            // Адаптивная плотность
+            if ui.checkbox(&mut app.adaptive, "Адаптивная плотность").changed() {
+                app.has_unsaved_changes = true;
+            }
+
+            // Количество точек
+            let mut n = app.n_points as u32;
+            ui.horizontal(|ui| {
+                ui.label("Точки:");
+                ui.add(egui::DragValue::new(&mut n).range(10..=10000));
+            });
+            if (n as usize) != app.n_points {
+                app.n_points = n as usize;
+                app.has_unsaved_changes = true;
+            }
+
+            // Авто-масштаб Y
+            if ui.checkbox(&mut app.auto_y, "Авто-масштаб Y").changed() {
+                app.has_unsaved_changes = true;
+            }
+            ui.separator();
+
+            ui.heading("Диапазон X");
+            let mut x_min = current_x_min;
+            let mut x_max = current_x_max;
+            ui.horizontal(|ui| {
+                ui.label("min:");
+                ui.add(egui::DragValue::new(&mut x_min));
+                ui.label("max:");
+                ui.add(egui::DragValue::new(&mut x_max));
+            });
+            if (x_min - current_x_min).abs() > 0.001 || (x_max - current_x_max).abs() > 0.001 {
+                pending_x_min = x_min;
+                pending_x_max = x_max;
+                pending_mark_dirty = true;
+                app.has_unsaved_changes = true;
+            }
+        });
+
+    // Применяем изменения после закрытия окна
+    if let Some(theme_kind) = pending_theme {
+        app.set_theme(theme_kind);
+    }
+    if pending_font_family != current_font_family {
+        app.font_config.family = pending_font_family;
+    }
+    if (pending_font_size - current_font_size).abs() > 0.01 {
+        app.font_config.size = pending_font_size;
+    }
+    if pending_mark_dirty {
+        app.x_min = pending_x_min;
+        app.x_max = pending_x_max;
+        app.viewport.x_min = pending_x_min;
+        app.viewport.x_max = pending_x_max;
+        app.mark_all_dirty();
     }
 }
 

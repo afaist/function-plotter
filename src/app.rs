@@ -55,6 +55,8 @@ pub struct GraphEntry {
     pub is_editing: bool,
     /// Формула до начала редактирования (для сравнения после)
     pub formula_before_edit: String,
+    /// Номер группы графика (0 = без группы)
+    pub group: usize,
 }
 
 impl GraphEntry {
@@ -76,7 +78,8 @@ impl GraphEntry {
             slider_b: 0.0,
             slider_c: 0.0,
             is_editing: false,
-            formula_before_edit: formula.to_string(),
+            formula_before_edit: String::new(),
+            group: 0,
         };
         entry.reparse();
         entry
@@ -102,6 +105,7 @@ impl GraphEntry {
             slider_c: 0.0,
             is_editing: false,
             formula_before_edit: String::new(),
+            group: 0,
         };
         entry.recompute_from_raw();
         entry
@@ -437,6 +441,8 @@ pub struct PlotApp {
     pub is_ready_to_close: bool,
     /// Флаг: есть несохранённые изменения.
     pub has_unsaved_changes: bool,
+    /// Флаг: показать окно настроек.
+    pub show_settings_window: bool,
     /// Стек для undo: снимки состояния graphs
     pub undo_stack: Vec<Vec<GraphEntry>>,
     /// Стек для redo: снимки состояния graphs
@@ -459,6 +465,12 @@ pub struct PlotApp {
     pub current_theme: ThemeKind,
     /// Настройки шрифтов
     pub font_config: FontConfig,
+    /// Режим зума выделением: true = драг создаёт прямоугольник выделения
+    pub zoom_mode: bool,
+    /// Начальная точка выделения (экранная)
+    pub selection_start: Option<Pos2>,
+    /// Конечная точка выделения (экранная)
+    pub selection_end: Option<Pos2>,
 }
 
 impl Default for PlotApp {
@@ -490,7 +502,7 @@ impl Default for PlotApp {
             show_save_dialog: false,
             is_ready_to_close: false,
             has_unsaved_changes: false,
-
+            show_settings_window: false,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             max_history: 50,
@@ -502,6 +514,9 @@ impl Default for PlotApp {
             school_grid: false,
             current_theme: ThemeKind::Dark,
             font_config: FontConfig::default(),
+            zoom_mode: false,
+            selection_start: None,
+            selection_end: None,
         };
         app.graphs.push(GraphEntry::new(
             "f1",
@@ -1535,6 +1550,9 @@ impl eframe::App for PlotApp {
         if self.show_about_window {
             // Тема применяется автоматически через apply_theme() в начале ui()
         }
+
+        // Окно настроек
+        crate::ui::controls::show_settings_window(self, &ctx);
 
         // Окно таблицы значений
         egui::Window::new("Таблица значений")

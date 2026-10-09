@@ -1,6 +1,6 @@
 //! Центральная область: холст для отрисовки графиков, pan/zoom, легенда.
 
-use egui::{Context, Rect, Sense, Stroke, Ui, Vec2, pos2};
+use egui::{Context, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, Vec2, pos2};
 
 use crate::app::PlotApp;
 use crate::renderer;
@@ -41,22 +41,45 @@ pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         }
     }
 
-    // Перетаскивание (pan)
+    // Перетаскивание (pan) или выделение для зума
     if response.dragged() {
-        if let Some(start) = app.drag_start {
-            let current = response.interact_pointer_pos().unwrap_or(start);
-            let dx_screen = current.x - start.x;
-            let dy_screen = current.y - start.y;
-            let dx_math =
-                -dx_screen as f64 / rect.width() as f64 * (app.viewport.x_max - app.viewport.x_min);
-            let dy_math =
-                dy_screen as f64 / rect.height() as f64 * (app.viewport.y_max - app.viewport.y_min);
-            app.viewport.pan(dx_math, dy_math);
-            app.mark_all_dirty();
-            app.drag_start = Some(current);
-        } else {
+        if app.zoom_mode {
+            // Режим зума: создаём прямоугольник выделения
+            if app.selection_start.is_none() {
+                app.selection_start = response.interact_pointer_pos();
+                app.selection_end = app.selection_start;
+            } else {
+                app.selection_end = response.interact_pointer_pos();
+            }
+            // Не даём egui обработать как pan
             app.drag_start = response.interact_pointer_pos();
+        } else {
+            // Обычный pan
+            if let Some(start) = app.drag_start {
+                let current = response.interact_pointer_pos().unwrap_or(start);
+                let dx_screen = current.x - start.x;
+                let dy_screen = current.y - start.y;
+                let dx_math =
+                    -dx_screen as f64 / rect.width() as f64 * (app.viewport.x_max - app.viewport.x_min);
+                let dy_math =
+                    dy_screen as f64 / rect.height() as f64 * (app.viewport.y_max - app.viewport.y_min);
+                app.viewport.pan(dx_math, dy_math);
+                app.mark_all_dirty();
+                app.drag_start = Some(current);
+            } else {
+                app.drag_start = response.interact_pointer_pos();
+            }
         }
+    } else if response.drag_stopped() {
+        // Конец перетаскивания — применяем зум если в режиме выделения
+        if app.zoom_mode {
+            if let (Some(start), Some(end)) = (app.selection_start, app.selection_end) {
+                apply_zoom_to_selection(app, start, end, rect);
+            }
+            app.selection_start = None;
+            app.selection_end = None;
+        }
+        app.drag_start = None;
     } else {
         app.drag_start = None;
     }
@@ -69,6 +92,27 @@ pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     let painter = ui.painter_at(rect);
     let theme = app.current_theme.resolve(ui.ctx());
     painter.rect_filled(rect, 0.0, theme.canvas_bg);
+
+    // Рисуем прямоугольник выделения если в режиме зума
+    if app.zoom_mode {
+        if let (Some(start), Some(end)) = (app.selection_start, app.selection_end) {
+            let sel_rect = Rect::from_min_max(start, end);
+            if sel_rect.intersects(rect) {
+                let clipped = sel_rect.intersect(rect);
+                painter.rect_stroke(
+                    clipped,
+                    1.0,
+                    Stroke::new(1.5, theme.selection_stroke),
+                    StrokeKind::Outside,
+                );
+                painter.rect_filled(
+                    clipped,
+                    0.0,
+                    theme.selection_fill.gamma_multiply(0.3),
+                );
+            }
+        }
+    }
 
     if app.polar_mode {
         renderer::draw_polar_grid(&painter, rect, &app.viewport, &theme, &app.font_config);
@@ -311,4 +355,40 @@ fn draw_intersections(
             theme.intersection_label_bg,
         );
     }
+}
+
+/// Применить зум к выбранной области.
+fn apply_zoom_to_selection(app: &mut PlotApp, start: Pos2, end: Pos2, canvas_rect: Rect) {
+    // Преобразуем экранные координаты в математические
+    let (x1, y1) = app.viewport.screen_to_math(pos2(start.x, start.y), canvas_rect);
+    let (x2, y2) = app.viewport.screen_to_math(pos2(end.x, end.y), canvas_rect);
+
+    // Определяем границы выделения (учитываем направление драга)
+    let sel_x_min = x1.min(x2);
+    let sel_x_max = x1.max(x2);
+    let sel_y_min = y1.min(y2);
+    let sel_y_max = y1.max(y2);
+
+    // Проверяем что выделение имеет размер
+    let x_range = sel_x_max - sel_x_min;
+    let y_range = sel_y_max - sel_y_min;
+    if x_range < 0.0001 && y_range < 0.0001 {
+        return;
+    }
+
+    // Добавляем небольшой отступ (10%)
+    let pad_x = x_range * 0.1;
+    let pad_y = y_range * 0.1;
+
+    // Устанавливаем новый viewport
+    app.viewport.x_min = sel_x_min - pad_x;
+    app.viewport.x_max = sel_x_max + pad_x;
+    app.viewport.y_min = sel_y_min - pad_y;
+    app.viewport.y_max = sel_y_max + pad_y;
+
+    // Синхронизируем x_min/x_max
+    app.x_min = app.viewport.x_min;
+    app.x_max = app.viewport.x_max;
+
+    app.mark_all_dirty();
 }
