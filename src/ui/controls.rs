@@ -852,6 +852,26 @@ fn show_export_ui(app: &mut PlotApp, ctx: &Context, ui: &mut Ui, need_recompute:
             }));
         }
     }
+    ui.button("Сохранить PNG").on_hover_text("Сохранить скриншот всего окна в PNG");
+
+    ui.separator();
+
+    let png_canvas_btn = ui.button("Сохранить PNG холста");
+    png_canvas_btn.clone().on_hover_text("Сохранить только область графика (без панелей)");
+    if png_canvas_btn.clicked() {
+        let path = rfd::FileDialog::new()
+            .set_file_name("plot_canvas.png")
+            .add_filter("PNG", &["png"])
+            .save_file();
+
+        if let Some(ref p) = path {
+            app.save_path = Some(p.clone());
+            app.should_capture = true;
+            ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData {
+                data: None,
+            }));
+        }
+    }
 
     ui.separator();
 

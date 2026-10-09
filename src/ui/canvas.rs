@@ -143,7 +143,7 @@ pub fn show_canvas_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     );
 
     // Координаты мыши
-    draw_mouse_coords(ui, &painter, rect, &app.viewport, &theme, &app.font_config);
+    draw_mouse_coords(ui, &painter, rect, &app.viewport, &theme, &app.font_config, app.polar_mode);
 }
 
 /// Отрисовка школьной сетки 1:1 (клетка = 1 единица).
@@ -245,6 +245,7 @@ fn draw_mouse_coords(
     viewport: &crate::renderer::Viewport,
     theme: &crate::theme::Theme,
     font_config: &FontConfig,
+    polar_mode: bool,
 ) {
     if let Some(hover_pos) = ui.input(|i| i.pointer.hover_pos()) {
         if hover_pos.x >= rect.left()
@@ -253,14 +254,30 @@ fn draw_mouse_coords(
             && hover_pos.y <= rect.bottom()
         {
             let (math_x, math_y) = viewport.screen_to_math(hover_pos, rect);
-            let label = format!("{:.3}, {:.3}", math_x, math_y);
-            painter.text(
-                pos2(rect.left() + 8.0, rect.bottom() - 24.0),
-                egui::Align2::LEFT_TOP,
-                label,
-                font_config.small_font(),
-                theme.text_primary,
-            );
+            
+            if polar_mode {
+                // Полярные координаты: (r, θ)
+                let r = (math_x * math_x + math_y * math_y).sqrt();
+                let theta = math_x.atan2(math_y).to_degrees();
+                let label = format!("r={:.3}, θ={:.2}°", r, theta);
+                painter.text(
+                    pos2(rect.left() + 8.0, rect.bottom() - 24.0),
+                    egui::Align2::LEFT_TOP,
+                    label,
+                    font_config.small_font(),
+                    theme.text_primary,
+                );
+            } else {
+                // Декартовы координаты
+                let label = format!("{:.3}, {:.3}", math_x, math_y);
+                painter.text(
+                    pos2(rect.left() + 8.0, rect.bottom() - 24.0),
+                    egui::Align2::LEFT_TOP,
+                    label,
+                    font_config.small_font(),
+                    theme.text_primary,
+                );
+            }
         }
     }
 }

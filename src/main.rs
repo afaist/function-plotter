@@ -76,6 +76,16 @@ fn main() -> eframe::Result {
             app.current_theme =
                 theme::ThemeKind::from_string(&config.theme).unwrap_or(theme::ThemeKind::Dark);
 
+            // Устанавливаем начальную тему системы для egui
+            if app.current_theme == theme::ThemeKind::System {
+                let is_dark = theme::ThemeKind::detect_system_theme();
+                if is_dark {
+                    cc.egui_ctx.set_theme(egui::ThemePreference::Dark);
+                } else {
+                    cc.egui_ctx.set_theme(egui::ThemePreference::Light);
+                }
+            }
+
             // Восстанавливаем размер окна из config
             app.restore_window_size();
 

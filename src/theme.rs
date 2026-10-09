@@ -310,17 +310,30 @@ impl ThemeKind {
     }
 
     /// Разрешить тему с учётом системной настройки (для ThemeKind::System).
-    pub fn resolve(&self, ctx: &egui::Context) -> Theme {
+    pub fn resolve(&self, _ctx: &egui::Context) -> Theme {
         match self {
             ThemeKind::System => {
-                let preferred = ctx.options(|opts| opts.theme_preference);
-                match preferred {
-                    egui::ThemePreference::Light => ThemeKind::Light.default_theme(),
-                    _ => ThemeKind::Dark.default_theme(),
+                let is_dark = Self::detect_system_theme();
+                if is_dark {
+                    ThemeKind::Dark.default_theme()
+                } else {
+                    ThemeKind::Light.default_theme()
                 }
             }
             _ => self.default_theme(),
         }
+    }
+
+    /// Определить текущую тему системы (тёмная/светлая).
+    pub fn detect_system_theme() -> bool {
+        // Fallback: определяем по переменной окружения (GTK/Qt)
+        let gtk_theme = std::env::var("GTK_THEME")
+            .map(|t| t.to_lowercase().contains("dark"))
+            .unwrap_or(false);
+        let qt_style = std::env::var("QT_STYLE_OVERRIDE")
+            .map(|t| t.to_lowercase().contains("dark"))
+            .unwrap_or(false);
+        gtk_theme || qt_style
     }
 }
 
