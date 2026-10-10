@@ -480,7 +480,8 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     ui.add_space(8.0);
     ui.separator();
     ui.horizontal(|ui| {
-        ui.label("Группы:");
+        let groups_label = ui.label("Группы:");
+        groups_label.on_hover_text("Нажмите на 👁/🚫 чтобы показать/скрыть все графики группы");
         for g in 1..=3 {
             // Проверяем есть ли графики в этой группе
             let has_graphs_in_group = app.graphs.iter().any(|graph| graph.group == g);
@@ -504,7 +505,6 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
             }
         }
     });
-    ui.label("Группы").on_hover_text("Нажмите на 👁/🚫 чтобы показать/скрыть все графики группы");
 
     ui.add_space(8.0);
     ui.separator();

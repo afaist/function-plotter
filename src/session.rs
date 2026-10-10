@@ -12,6 +12,7 @@ pub struct GraphEntryDto {
     pub formula: String,
     pub color: [u8; 3],
     pub visible: bool,
+    pub group: usize,
 }
 
 /// Сериализуемое представление всего состояния.
@@ -34,7 +35,7 @@ pub struct SessionData {
 }
 
 impl SessionData {
-    pub const VERSION: u32 = 4;
+    pub const VERSION: u32 = 5;
 
     /// Собрать DTO из состояния приложения.
     pub fn from_app(app: &PlotApp) -> Self {
@@ -46,6 +47,7 @@ impl SessionData {
                 formula: g.formula_text.clone(),
                 color: [g.style.color.r(), g.style.color.g(), g.style.color.b()],
                 visible: g.style.visible,
+                group: g.group,
             })
             .collect();
 
@@ -75,6 +77,7 @@ impl SessionData {
             let color = egui::Color32::from_rgb(dto.color[0], dto.color[1], dto.color[2]);
             let mut entry = GraphEntry::new(&dto.label, color, &dto.formula);
             entry.style.visible = dto.visible;
+            entry.group = dto.group;
             app.graphs.push(entry);
         }
 
@@ -117,8 +120,15 @@ impl SessionData {
         if data.version != Self::VERSION {
             // Миграция v3 -> v4: добавляем school_grid
             if data.version == 3 {
-                data.version = Self::VERSION;
+                data.version = 4;
                 data.school_grid = false;
+            }
+            // Миграция v4 -> v5: добавляем group
+            if data.version == 4 {
+                data.version = Self::VERSION;
+                for dto in &mut data.graphs {
+                    dto.group = 0;
+                }
             }
             return Err(format!(
                 "Версия файла {} не поддерживается (ожидается {})",
