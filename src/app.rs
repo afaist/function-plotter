@@ -505,7 +505,7 @@ impl Default for PlotApp {
             is_ready_to_close: false,
             has_unsaved_changes: false,
             show_settings_window: false,
-            show_quick_start: true,
+            show_quick_start: false,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             max_history: 50,
@@ -673,7 +673,7 @@ impl PlotApp {
                                         temp_dir.join(format!("config{}.json", suffix));
 
                                     let config = AppConfig {
-                                        version: 4,
+                                        version: 5,
                                         window_width: width,
                                         window_height: height,
                                         auto_load_last_session: false,
@@ -687,6 +687,7 @@ impl PlotApp {
                                         adaptive_density: false,
                                         n_points: 500,
                                         auto_y: true,
+                                        show_quick_start: true,
                                     };
                                     if let Err(e) = config.save_to(&config_path) {
                                         eprintln!("Warning: Could not save config: {e}");
@@ -712,7 +713,7 @@ impl PlotApp {
 
                                     // Создаём config с нужным размером
                                     let config = AppConfig {
-                                        version: 4,
+                                        version: 5,
                                         window_width: 1200.0,
                                         window_height: 800.0,
                                         auto_load_last_session: false,
@@ -726,6 +727,7 @@ impl PlotApp {
                                         adaptive_density: false,
                                         n_points: 500,
                                         auto_y: true,
+                                        show_quick_start: true,
                                     };
                                     config.save_to(&config_path).ok();
 

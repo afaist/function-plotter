@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 /// Константа версии формата конфигурации.
-pub const CONFIG_VERSION: u32 = 4;
+pub const CONFIG_VERSION: u32 = 5;
 
 /// Дефолтные значения конфигурации.
 pub const DEFAULT_WINDOW_WIDTH: f64 = 1000.0;
@@ -12,6 +12,7 @@ pub const DEFAULT_WINDOW_HEIGHT: f64 = 700.0;
 pub const DEFAULT_AUTO_LOAD: bool = false;
 pub const DEFAULT_FONT_FAMILY: &str = "proportional";
 pub const DEFAULT_FONT_SIZE: f32 = 12.0;
+pub const DEFAULT_SHOW_QUICK_START: bool = true;
 
 /// Настройки приложения.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -32,6 +33,8 @@ pub struct AppConfig {
     pub adaptive_density: bool,
     pub n_points: usize,
     pub auto_y: bool,
+    // Настройки интерфейса
+    pub show_quick_start: bool,
 }
 
 impl Default for AppConfig {
@@ -51,6 +54,7 @@ impl Default for AppConfig {
             adaptive_density: false,
             n_points: 500,
             auto_y: true,
+            show_quick_start: DEFAULT_SHOW_QUICK_START,
         }
     }
 }
@@ -92,6 +96,11 @@ impl AppConfig {
                         }
                         if config.font_size <= 0.0 {
                             config.font_size = DEFAULT_FONT_SIZE;
+                        }
+                        // Миграция v4 -> v5: добавляем show_quick_start
+                        if config.show_quick_start == DEFAULT_SHOW_QUICK_START {
+                            // Проверяем, есть ли поле в JSON (если нет — значит старая версия)
+                            config.show_quick_start = DEFAULT_SHOW_QUICK_START;
                         }
                         // Сохраняем обновлённую версию
                         let _ = config.save();
@@ -145,6 +154,9 @@ impl AppConfig {
                         }
                         if config.font_size <= 0.0 {
                             config.font_size = DEFAULT_FONT_SIZE;
+                        }
+                        if config.show_quick_start == DEFAULT_SHOW_QUICK_START {
+                            config.show_quick_start = DEFAULT_SHOW_QUICK_START;
                         }
                     }
                     config

@@ -92,6 +92,9 @@ fn main() -> eframe::Result {
             // Инициализируем FontConfig из конфига
             app.font_config = font_config;
 
+            // Инициализируем show_quick_start из конфига
+            app.show_quick_start = config.show_quick_start;
+
             // Проверяем auto-load
             if config.auto_load_last_session {
                 app.try_load_last_session();
