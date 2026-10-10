@@ -2,9 +2,11 @@
 ///
 /// Создаёт простую иконку с графиком синусоиды.
 
+#[allow(dead_code)]
 use image::{Rgba, RgbaImage};
 
 /// Создать иконку 256x256 для приложения.
+#[allow(dead_code)]
 pub fn create_app_icon() -> RgbaImage {
     let mut img = RgbaImage::new(256, 256);
 
@@ -82,6 +84,7 @@ pub fn create_app_icon() -> RgbaImage {
 }
 
 /// Сохранить иконку в PNG-файл.
+#[allow(dead_code)]
 pub fn save_icon_to_file(path: &str) -> Result<(), String> {
     let img = create_app_icon();
     img.save(path).map_err(|e| format!("Сохранение иконки: {e}"))
