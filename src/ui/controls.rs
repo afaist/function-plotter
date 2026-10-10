@@ -1197,9 +1197,9 @@ pub fn show_settings_window(app: &mut PlotApp, ctx: &Context) {
         .open(&mut app.show_settings_window)
         .show(ctx, |ui| {
             ui.heading("Тема");
-            let mut selected_theme = current_theme.clone();
+            let mut selected_theme = current_theme;
             egui::ComboBox::from_id_salt("settings_theme")
-                .selected_text(selected_theme.clone())
+                .selected_text(selected_theme)
                 .show_ui(ui, |ui| {
                     for theme in crate::theme::ThemeKind::all() {
                         ui.selectable_value(&mut selected_theme, theme.to_string(), theme.to_string());
