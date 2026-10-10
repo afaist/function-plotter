@@ -236,7 +236,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     let mut need_save_snapshot = false;
 
     // Кнопка шаблонов
-    let templates_resp = ui.button("📋 Шаблоны");
+    let templates_resp = ui.button(egui::RichText::new("📋 Шаблоны").size(13.0));
     templates_resp.clone().on_hover_text("Выберите готовую функцию из шаблонов");
     if templates_resp.clicked() {
         app.show_templates_window = true;
@@ -445,6 +445,37 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         app.save_snapshot();
     }
 
+    // Добавить график — увеличенный шрифт
+    let add_resp = ui.button(egui::RichText::new("+ Добавить график").size(13.0));
+    add_resp.clone().on_hover_text("Добавить новый график функций");
+    if add_resp.clicked() {
+        let palette = [
+            Color32::from_rgb(150, 255, 150),
+            Color32::from_rgb(255, 255, 100),
+            Color32::from_rgb(200, 100, 255),
+            Color32::from_rgb(100, 255, 200),
+        ];
+        let idx = app.graphs.len();
+        let color = palette[idx % palette.len()];
+        app.graphs
+            .push(GraphEntry::new(&format!("f{}", idx + 1), color, "x"));
+        app.has_unsaved_changes = true;
+        need_save_snapshot = true;
+        need_recompute = true;
+    }
+
+    if let Some(i) = need_remove {
+        app.graphs.remove(i);
+        app.has_unsaved_changes = true;
+        need_save_snapshot = true;
+        need_recompute = true;
+    }
+
+    // Разделитель
+    ui.add_space(8.0);
+    ui.separator();
+    ui.add_space(4.0);
+
     // Кнопки управления группами
     ui.add_space(8.0);
     ui.separator();
@@ -492,33 +523,7 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         }
     }
 
-    // Добавить график
-    let add_resp = ui.button("+ Добавить график");
-    add_resp.clone().on_hover_text("Добавить новый график функций");
-    if add_resp.clicked() {
-        let palette = [
-            Color32::from_rgb(150, 255, 150),
-            Color32::from_rgb(255, 255, 100),
-            Color32::from_rgb(200, 100, 255),
-            Color32::from_rgb(100, 255, 200),
-        ];
-        let idx = app.graphs.len();
-        let color = palette[idx % palette.len()];
-        app.graphs
-            .push(GraphEntry::new(&format!("f{}", idx + 1), color, "x"));
-        app.has_unsaved_changes = true;
-        need_save_snapshot = true;
-        need_recompute = true;
-    }
-
-    if let Some(i) = need_remove {
-        app.graphs.remove(i);
-        app.has_unsaved_changes = true;
-        need_save_snapshot = true;
-        need_recompute = true;
-    }
-
-    // Кнопка настроек — ниже "Добавить график", с разделителем
+    // Кнопка настроек — ниже "Зум выделением", с разделителем
     ui.add_space(8.0);
     ui.separator();
     ui.heading("Настройки");
