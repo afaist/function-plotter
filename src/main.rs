@@ -42,9 +42,12 @@ fn main() -> eframe::Result {
     }
     
     // Загружаем иконку приложения
-    let mut viewport_builder = egui::ViewportBuilder::default()
-        .with_inner_size((config.window_width as f32, config.window_height as f32))
-        .with_min_inner_size((600.0, 400.0));
+    let mut options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size((config.window_width as f32, config.window_height as f32))
+            .with_min_inner_size((600.0, 400.0)),
+        ..Default::default()
+    };
 
     if let Ok(icon_bytes) = std::fs::read("resources/icon.png") {
         if let Ok(icon) = image::load_from_memory(&icon_bytes) {
@@ -54,14 +57,9 @@ fn main() -> eframe::Result {
                 height: icon.height(),
                 rgba: icon.into_raw(),
             };
-            viewport_builder = viewport_builder.with_icon(std::sync::Arc::new(icon_data));
+            options.viewport = options.viewport.with_icon(std::sync::Arc::new(icon_data));
         }
     }
-
-    let options = eframe::NativeOptions {
-        viewport: viewport_builder,
-        ..Default::default()
-    };
 
     eframe::run_native(
         "Function Plotter",
