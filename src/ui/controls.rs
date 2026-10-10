@@ -1113,7 +1113,9 @@ pub fn show_settings_window(app: &mut PlotApp, ctx: &Context) {
 
             // Загрузка кастомного шрифта
             ui.horizontal(|ui| {
-                if ui.button("📂 Загрузить шрифт").clicked() {
+                let load_btn = ui.button("📂 Загрузить шрифт");
+                load_btn.clone().on_hover_text("Выбрать .ttf файл для использования в качестве основного шрифта");
+                if load_btn.clicked() {
                     let path = rfd::FileDialog::new()
                         .add_filter("TrueType Font", &["ttf"])
                         .add_filter("All Files", &["*"])
@@ -1138,14 +1140,14 @@ pub fn show_settings_window(app: &mut PlotApp, ctx: &Context) {
                         }
                     }
                 }
-                ui.button("📂 Загрузить шрифт").on_hover_text("Выбрать .ttf файл для использования в качестве основного шрифта");
                 
-                if ui.button("↺ Сбросить").clicked() {
+                let reset_btn = ui.button("↺ Сбросить");
+                reset_btn.clone().on_hover_text("Вернуть настройки шрифта к значениям по умолчанию");
+                if reset_btn.clicked() {
                     app.font_config = FontConfig::default();
                     app.has_unsaved_changes = true;
                     ui.ctx().request_repaint();
                 }
-                ui.button("↺ Сбросить").on_hover_text("Вернуть настройки шрифта к значениям по умолчанию");
             });
             ui.separator();
 
