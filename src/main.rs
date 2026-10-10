@@ -2,6 +2,7 @@ mod app;
 mod config;
 mod evaluator;
 mod export;
+mod icon;
 mod parser;
 mod renderer;
 mod session;
@@ -40,10 +41,25 @@ fn main() -> eframe::Result {
         }
     }
     
+    // Загружаем иконку приложения
+    let mut viewport_builder = egui::ViewportBuilder::default()
+        .with_inner_size((config.window_width as f32, config.window_height as f32))
+        .with_min_inner_size((600.0, 400.0));
+
+    if let Ok(icon_bytes) = std::fs::read("resources/icon.png") {
+        if let Ok(icon) = image::load_from_memory(&icon_bytes) {
+            let icon = icon.into_rgba8();
+            let icon_data = egui::IconData {
+                width: icon.width(),
+                height: icon.height(),
+                rgba: icon.into_raw(),
+            };
+            viewport_builder = viewport_builder.with_icon(std::sync::Arc::new(icon_data));
+        }
+    }
+
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size((config.window_width as f32, config.window_height as f32))
-            .with_min_inner_size((600.0, 400.0)),
+        viewport: viewport_builder,
         ..Default::default()
     };
 
