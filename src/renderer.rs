@@ -523,3 +523,115 @@ pub fn draw_polar_grid(painter: &Painter, rect: Rect, viewport: &Viewport, theme
         );
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui::pos2;
+
+    #[test]
+    fn test_viewport_new() {
+        let vp = Viewport::new();
+        assert_eq!(vp.x_min, -10.0);
+        assert_eq!(vp.x_max, 10.0);
+        assert_eq!(vp.y_min, -5.0);
+        assert_eq!(vp.y_max, 5.0);
+    }
+
+    #[test]
+    fn test_viewport_pan() {
+        let mut vp = Viewport::new();
+        vp.pan(5.0, 3.0);
+        assert_eq!(vp.x_min, -5.0);
+        assert_eq!(vp.x_max, 15.0);
+        assert_eq!(vp.y_min, -2.0);
+        assert_eq!(vp.y_max, 8.0);
+    }
+
+    #[test]
+    fn test_viewport_zoom() {
+        let mut vp = Viewport::new();
+        let rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(100.0, 100.0));
+        let center = Vec2::new(50.0, 50.0);
+        
+        // Zoom in by factor 0.5
+        vp.zoom(0.5, center, rect);
+        
+        // Center is at (0, 0) in math coords
+        // After zoom: range should be halved
+        let x_range = vp.x_max - vp.x_min;
+        let y_range = vp.y_max - vp.y_min;
+        
+        // Original range: x = 20, y = 10
+        // After 0.5 zoom: x = 10, y = 5
+        assert!((x_range - 10.0).abs() < 0.01);
+        assert!((y_range - 5.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_viewport_math_to_screen() {
+        let vp = Viewport::new();
+        let rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(100.0, 100.0));
+        
+        // Center should map to center of rect
+        let center = vp.math_to_screen(0.0, 0.0, rect);
+        assert!((center.x - 50.0).abs() < 0.01);
+        assert!((center.y - 50.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_viewport_screen_to_math() {
+        let vp = Viewport::new();
+        let rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(100.0, 100.0));
+        
+        // Center of rect should map to (0, 0) in math coords
+        let center = pos2(50.0, 50.0);
+        let (x, y) = vp.screen_to_math(center, rect);
+        assert!((x - 0.0).abs() < 0.01);
+        assert!((y - 0.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_font_config_defaults() {
+        let config = FontConfig::default();
+        assert_eq!(config.family, "proportional");
+        assert!((config.size - 12.0).abs() < 0.01);
+        assert!(config.custom_font_data.is_none());
+        assert!(!config.is_custom());
+    }
+
+    #[test]
+    fn test_font_config_text_font() {
+        let config = FontConfig::default();
+        let font = config.text_font();
+        assert!(font.size > 0.0);
+    }
+
+    #[test]
+    fn test_font_config_formula_font() {
+        let config = FontConfig::default();
+        let font = config.formula_font();
+        assert!(font.size > 0.0);
+    }
+
+    #[test]
+    fn test_font_config_axis_font() {
+        let config = FontConfig::default();
+        let font = config.axis_font();
+        assert!(font.size > 0.0);
+    }
+
+    #[test]
+    fn test_font_config_small_font() {
+        let config = FontConfig::default();
+        let font = config.small_font();
+        assert!(font.size > 0.0);
+    }
+
+    #[test]
+    fn test_font_config_heading_font() {
+        let config = FontConfig::default();
+        let font = config.heading_font();
+        assert!(font.size > 0.0);
+    }
+}

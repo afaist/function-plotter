@@ -1373,3 +1373,134 @@ fn show_status_bar(app: &mut PlotApp, ui: &mut Ui) {
         }
     }
 }
+
+/// Отрисовка окна быстрого старта.
+pub fn show_quick_start_window(app: &mut PlotApp, ctx: &Context) {
+    let mut should_close = false;
+
+    egui::Window::new("🚀 Быстрый старт")
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .resizable(true)
+        .open(&mut app.show_quick_start)
+        .show(ctx, |ui| {
+            ui.heading("Добро пожаловать в Function Plotter!");
+            ui.separator();
+
+            ui.heading("1. Как добавить функцию");
+            ui.horizontal(|ui| {
+                ui.label("1.");
+                ui.label("Нажмите \"+ Добавить график\" в левой панели");
+            });
+            ui.horizontal(|ui| {
+                ui.label("2.");
+                ui.label("Введите формулу, например:");
+                ui.code("sin(x)");
+                ui.label(",");
+                ui.code("x^2");
+                ui.label(",");
+                ui.code("sqrt(x)");
+            });
+            ui.horizontal(|ui| {
+                ui.label("3.");
+                ui.label("Нажмите Enter или измените диапазон для пересчёта");
+            });
+            ui.separator();
+
+            ui.heading("2. Как масштабировать график");
+            ui.horizontal(|ui| {
+                ui.label("•");
+                ui.label("Колесико мыши — масштабирование к курсору");
+            });
+            ui.horizontal(|ui| {
+                ui.label("•");
+                ui.label("Зажать левую кнопку мыши и тянуть — перемещение");
+            });
+            ui.horizontal(|ui| {
+                ui.label("•");
+                ui.label("Включите \"Зум выделением\" и выделите участок для зума");
+            });
+            ui.horizontal(|ui| {
+                ui.label("•");
+                ui.label("Кнопка \"⟲ Сбросить масштаб\" — вернуть к начальному виду");
+            });
+            ui.separator();
+
+            ui.heading("3. Какие функции доступны");
+            ui.horizontal(|ui| {
+                ui.label("Базовые:");
+                ui.code("sin, cos, tan, sqrt, abs, log, exp");
+            });
+            ui.horizontal(|ui| {
+                ui.label("Производные:");
+                ui.code("deriv(sin(x))");
+            });
+            ui.horizontal(|ui| {
+                ui.label("Интегралы:");
+                ui.code("integral(sin(x), 0, 3.14)");
+            });
+            ui.horizontal(|ui| {
+                ui.label("Полярные:");
+                ui.code("polar(cos(x), 0, 2*pi)");
+            });
+            ui.horizontal(|ui| {
+                ui.label("Параметрические:");
+                ui.code("parametric(cos(t), sin(t), 0, 2*pi)");
+            });
+            ui.separator();
+
+            ui.heading("4. Как экспортировать");
+            ui.horizontal(|ui| {
+                ui.label("•");
+                ui.label("\"Сохранить PNG\" — скриншот всего окна");
+            });
+            ui.horizontal(|ui| {
+                ui.label("•");
+                ui.label("\"Сохранить PNG холста\" — только область графика");
+            });
+            ui.horizontal(|ui| {
+                ui.label("•");
+                ui.label("\"Сохранить SVG\" — векторный экспорт графиков");
+            });
+            ui.horizontal(|ui| {
+                ui.label("•");
+                ui.label("\"Сохранить CSV\" — данные в текстовом формате");
+            });
+            ui.separator();
+
+            ui.heading("Горячие клавиши");
+            ui.horizontal(|ui| {
+                ui.code("Ctrl+N");
+                ui.label("— Новый график");
+            });
+            ui.horizontal(|ui| {
+                ui.code("Ctrl+S");
+                ui.label("— Сохранить сессию");
+            });
+            ui.horizontal(|ui| {
+                ui.code("Ctrl+O");
+                ui.label("— Загрузить сессию");
+            });
+            ui.horizontal(|ui| {
+                ui.code("F5");
+                ui.label("— Пересчитать графики");
+            });
+            ui.horizontal(|ui| {
+                ui.code("Delete");
+                ui.label("— Удалить выбранный график");
+            });
+            ui.horizontal(|ui| {
+                ui.code("R");
+                ui.label("— Сбросить масштаб");
+            });
+            ui.separator();
+
+            ui.label("Нажмите \"Понятно\" чтобы закрыть это окно.");
+            if ui.button("Понятно").clicked() {
+                should_close = true;
+            }
+        });
+
+    if should_close {
+        app.show_quick_start = false;
+    }
+}

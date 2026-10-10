@@ -443,6 +443,8 @@ pub struct PlotApp {
     pub has_unsaved_changes: bool,
     /// Флаг: показать окно настроек.
     pub show_settings_window: bool,
+    /// Флаг: показать окно быстрого старта.
+    pub show_quick_start: bool,
     /// Стек для undo: снимки состояния graphs
     pub undo_stack: Vec<Vec<GraphEntry>>,
     /// Стек для redo: снимки состояния graphs
@@ -503,6 +505,7 @@ impl Default for PlotApp {
             is_ready_to_close: false,
             has_unsaved_changes: false,
             show_settings_window: false,
+            show_quick_start: true,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             max_history: 50,
@@ -1018,6 +1021,59 @@ impl PlotApp {
                                             assert!(*y <= 1.0 + 1e-10, "Y должно быть <= 1");
                                         }
                                     }
+                                }
+
+                                // --- Тесты групп графиков ---
+
+                                #[test]
+                                fn test_graph_group_assignment() {
+                                    let mut entry = GraphEntry::new("f1", Color32::RED, "x");
+                                    entry.group = 1;
+                                    assert_eq!(entry.group, 1);
+                                    
+                                    entry.group = 0;
+                                    assert_eq!(entry.group, 0);
+                                }
+
+                                #[test]
+                                fn test_graph_group_default() {
+                                    let entry = GraphEntry::new("f1", Color32::RED, "x");
+                                    assert_eq!(entry.group, 0);
+                                }
+
+                                #[test]
+                                fn test_graph_group_range() {
+                                    let mut entry = GraphEntry::new("f1", Color32::RED, "x");
+                                    entry.group = 3;
+                                    assert_eq!(entry.group, 3);
+                                    
+                                    entry.group = 100;
+                                    assert_eq!(entry.group, 100);
+                                }
+
+                                // --- Тесты зума выделением ---
+
+                                #[test]
+                                fn test_zoom_mode_default() {
+                                    let app = PlotApp::default();
+                                    assert!(!app.zoom_mode);
+                                }
+
+                                #[test]
+                                fn test_zoom_mode_toggle() {
+                                    let mut app = PlotApp::default();
+                                    app.zoom_mode = true;
+                                    assert!(app.zoom_mode);
+                                    
+                                    app.zoom_mode = false;
+                                    assert!(!app.zoom_mode);
+                                }
+
+                                #[test]
+                                fn test_selection_points_default() {
+                                    let app = PlotApp::default();
+                                    assert!(app.selection_start.is_none());
+                                    assert!(app.selection_end.is_none());
                                 }
                             }
                         }
@@ -1553,6 +1609,9 @@ impl eframe::App for PlotApp {
 
         // Окно настроек
         crate::ui::controls::show_settings_window(self, &ctx);
+
+        // Окно быстрого старта
+        crate::ui::controls::show_quick_start_window(self, &ctx);
 
         // Окно таблицы значений
         egui::Window::new("Таблица значений")
