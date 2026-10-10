@@ -1092,9 +1092,11 @@ impl PlotApp {
 
     /// Сохранить размер окна в config.
     pub fn save_window_size(&mut self) {
+        // window_size — это размер canvas, нужно добавить ширину левой панели
+        let left_panel_width = 260.0;
         let config = config::AppConfig::load();
         let new_config = config::AppConfig {
-            window_width: self.window_size[0] as f64,
+            window_width: (self.window_size[0] + left_panel_width) as f64,
             window_height: self.window_size[1] as f64,
             font_family: self.font_config.family.clone(),
             font_size: self.font_config.size,
@@ -1111,7 +1113,12 @@ impl PlotApp {
     /// Восстановить размер окна из config.
     pub fn restore_window_size(&mut self) {
         let config = config::AppConfig::load();
-        self.window_size = [config.window_width as f32, config.window_height as f32];
+        // config.window_width — это ширина всего окна, нужно вычесть левую панель
+        let left_panel_width = 260.0;
+        self.window_size = [
+            (config.window_width - left_panel_width) as f32,
+            config.window_height as f32,
+        ];
         // Восстанавливаем настройки шрифта
         self.font_config.family = config.font_family.clone();
         self.font_config.size = config.font_size;
@@ -1578,7 +1585,6 @@ impl eframe::App for PlotApp {
             .default_size(260.0)
             .show(ui, |ui| {
                 egui::ScrollArea::vertical()
-                    .auto_shrink([false, false])
                     .show(ui, |ui| {
                         crate::ui::controls::show_controls_panel(self, &ctx, ui);
                     });
