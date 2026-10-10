@@ -94,6 +94,7 @@ fn main() -> eframe::Result {
 
             // Инициализируем show_quick_start из конфига
             app.show_quick_start = config.show_quick_start;
+            app.quick_start_show_on_start = config.show_quick_start;
 
             // Проверяем auto-load
             if config.auto_load_last_session {

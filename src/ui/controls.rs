@@ -1240,7 +1240,6 @@ fn show_status_bar(app: &mut PlotApp, ui: &mut Ui) {
 /// Отрисовка окна быстрого старта.
 pub fn show_quick_start_window(app: &mut PlotApp, ctx: &Context) {
     let mut should_close = false;
-    let mut pending_show_on_start = app.show_quick_start;
 
     egui::Window::new("🚀 Быстрый старт")
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
@@ -1360,8 +1359,8 @@ pub fn show_quick_start_window(app: &mut PlotApp, ctx: &Context) {
 
             ui.label("Нажмите \"Понятно\" чтобы закрыть это окно.");
             
-            // Чекбокс "Показывать при запуске"
-            ui.checkbox(&mut pending_show_on_start, "Показывать при запуске");
+            // Чекбокс "Показывать при запуске" — используем отдельное поле
+            ui.checkbox(&mut app.quick_start_show_on_start, "Показывать при запуске");
             
             if ui.button("Понятно").clicked() {
                 should_close = true;
@@ -1372,7 +1371,7 @@ pub fn show_quick_start_window(app: &mut PlotApp, ctx: &Context) {
         app.show_quick_start = false;
         // Сохраняем состояние чекбокса в config
         let mut config = config::AppConfig::load();
-        config.show_quick_start = pending_show_on_start;
+        config.show_quick_start = app.quick_start_show_on_start;
         let _ = config.save();
     }
 }

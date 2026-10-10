@@ -445,6 +445,8 @@ pub struct PlotApp {
     pub show_settings_window: bool,
     /// Флаг: показать окно быстрого старта.
     pub show_quick_start: bool,
+    /// Временное значение чекбокса "Показывать при запуске" (для UI).
+    pub quick_start_show_on_start: bool,
     /// Стек для undo: снимки состояния graphs
     pub undo_stack: Vec<Vec<GraphEntry>>,
     /// Стек для redo: снимки состояния graphs
@@ -506,6 +508,7 @@ impl Default for PlotApp {
             has_unsaved_changes: false,
             show_settings_window: false,
             show_quick_start: false,
+            quick_start_show_on_start: true,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             max_history: 50,
