@@ -479,12 +479,18 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     ui.separator();
     ui.add_space(4.0);
 
-    // Кнопка настроек
-    let settings_resp = ui.button("⚙️ Настройки");
-    settings_resp.clone().on_hover_text("Открыть окно настроек приложения");
-    if settings_resp.clicked() {
-        app.show_settings_window = true;
-    }
+    // Кнопка настроек — выделяем рамкой
+    let settings_frame = egui::Frame::default()
+        .fill(theme.frame_fill.gamma_multiply(0.8))
+        .stroke(egui::Stroke::new(1.5, theme.selection_stroke))
+        .inner_margin(egui::Margin::symmetric(12, 8));
+    settings_frame.show(ui, |ui| {
+        let settings_resp = ui.button("⚙️ Настройки");
+        settings_resp.clone().on_hover_text("Открыть окно настроек приложения");
+        if settings_resp.clicked() {
+            app.show_settings_window = true;
+        }
+    });
 
     // Режим зума выделением
     let zoom_resp = ui
