@@ -499,14 +499,6 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         }
     }
 
-    // Школьная сетка
-    let school_resp = ui
-        .checkbox(&mut app.school_grid, "Школьная сетка 1:1");
-    school_resp.clone().on_hover_text("Отобразить сетку 1:1 для школьных задач");
-    if school_resp.changed() {
-        app.has_unsaved_changes = true;
-    }
-
     // Добавить график
     let add_resp = ui.button("+ Добавить график");
     add_resp.clone().on_hover_text("Добавить новый график функций");
@@ -576,17 +568,6 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
         }
     });
 
-    // Полярные координаты
-    ui.add_space(4.0);
-    let polar_resp = ui
-        .checkbox(&mut app.polar_mode, "Полярные координаты");
-    polar_resp.clone().on_hover_text("Переключить в полярную систему координат");
-    if polar_resp.changed() {
-        app.has_unsaved_changes = true;
-        need_save_snapshot = true;
-        app.mark_all_dirty();
-    }
-
     // Диапазон Y
     ui.add_space(8.0);
     ui.separator();
@@ -596,29 +577,6 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
     if auto_y_resp.changed() {
         app.has_unsaved_changes = true;
         need_save_snapshot = true;
-    }
-
-    // Адаптивный алгоритм
-    ui.add_space(4.0);
-    let adaptive_resp = ui
-        .checkbox(&mut app.adaptive, "Адаптивная плотность");
-    adaptive_resp.clone().on_hover_text("Адаптивно увеличивать количество точек в зонах быстрого изменения");
-    if adaptive_resp.changed() {
-        app.has_unsaved_changes = true;
-        need_save_snapshot = true;
-    }
-    if app.adaptive {
-        let mut tolerance = app.adaptive_tolerance;
-        ui.horizontal(|ui| {
-            if ui
-                .add(egui::Slider::new(&mut tolerance, 0.0001..=1.0).text("точность"))
-                .changed()
-            {
-                app.adaptive_tolerance = tolerance;
-                app.has_unsaved_changes = true;
-                need_save_snapshot = true;
-            }
-        });
     }
 
     if !app.auto_y {
@@ -688,107 +646,6 @@ pub fn show_controls_panel(app: &mut PlotApp, ctx: &Context, ui: &mut Ui) {
 
     // Статус-бар
     show_status_bar(app, ui);
-
-    // Переключатель темы
-    ui.add_space(8.0);
-    ui.separator();
-    ui.horizontal(|ui| {
-        ui.label("Тема:");
-        let current = app.current_theme.to_string();
-        let mut selected = current;
-        egui::ComboBox::from_id_salt("theme_combo")
-            .selected_text(current)
-            .show_ui(ui, |ui| {
-                for theme in crate::theme::ThemeKind::all() {
-                    ui.selectable_value(&mut selected, theme.to_string(), theme.to_string());
-                }
-            });
-        if selected != current {
-            if let Some(theme_kind) = crate::theme::ThemeKind::from_string(selected) {
-                app.set_theme(theme_kind);
-                ui.ctx().request_repaint();
-            }
-        }
-    });
-    ui.label("Тема").on_hover_text("Выберите цветовую тему оформления");
-
-    // --- Секция шрифтов ---
-    ui.add_space(8.0);
-    ui.separator();
-    ui.heading("Шрифт");
-
-    // Выбор семейства шрифта
-    let mut font_family_selected = app.font_config.family.clone();
-    ui.horizontal(|ui| {
-        ui.label("Семейство:");
-        egui::ComboBox::from_id_salt("font_family_combo")
-            .selected_text(font_family_selected.clone())
-            .show_ui(ui, |ui| {
-                ui.selectable_value(&mut font_family_selected, "proportional".to_string(), "Proportional");
-                ui.selectable_value(&mut font_family_selected, "monospace".to_string(), "Monospace");
-                if app.font_config.is_custom() {
-                    ui.selectable_value(&mut font_family_selected, "custom".to_string(), "Custom (loaded)");
-                }
-            });
-    });
-    ui.label("Семейство").on_hover_text("Proportional — пропорциональный, Monospace — моноширинный");
-    
-    if font_family_selected != app.font_config.family {
-        app.font_config.family = font_family_selected;
-        app.has_unsaved_changes = true;
-    }
-
-    // Размер шрифта
-    let mut font_size = app.font_config.size;
-    ui.horizontal(|ui| {
-        ui.label("Размер:");
-        let resp = ui.add(egui::DragValue::new(&mut font_size).range(8.0..=24.0).speed(0.5));
-        resp.on_hover_text("Размер шрифта в пунктах (8–24)");
-    });
-    if (font_size - app.font_config.size).abs() > 0.01 {
-        app.font_config.size = font_size;
-        app.has_unsaved_changes = true;
-        ui.ctx().request_repaint();
-    }
-
-    // Кнопка загрузки кастомного шрифта
-    ui.horizontal(|ui| {
-        let load_font_resp = ui.button("📂 Загрузить шрифт");
-        load_font_resp.clone().on_hover_text("Выбрать .ttf файл для использования в качестве основного шрифта");
-        if load_font_resp.clicked() {
-            let path = rfd::FileDialog::new()
-                .add_filter("TrueType Font", &["ttf"])
-                .add_filter("All Files", &["*"])
-                .pick_file();
-            if let Some(ref p) = path {
-                match FontConfig::load_custom_font(p) {
-                    Ok(custom_font) => {
-                        app.font_config = custom_font;
-                        app.has_unsaved_changes = true;
-                        app.status_msg = Some(StatusMessage::Info(format!(
-                            "Шрифт загружен: {}",
-                            p.file_name().unwrap_or_default().to_string_lossy()
-                        )));
-                        app.status_time = Some(Instant::now());
-                    }
-                    Err(e) => {
-                        app.status_msg = Some(StatusMessage::Error(format!(
-                            "Ошибка загрузки шрифта: {e}"
-                        )));
-                        app.status_time = Some(Instant::now());
-                    }
-                }
-            }
-        }
-        
-        let reset_font_resp = ui.button("↺ Сбросить");
-        reset_font_resp.clone().on_hover_text("Вернуть настройки шрифта к значениям по умолчанию");
-        if reset_font_resp.clicked() {
-            app.font_config = FontConfig::default();
-            app.has_unsaved_changes = true;
-            ui.ctx().request_repaint();
-        }
-    });
 
     // Кнопки помощи
     ui.add_space(8.0);
